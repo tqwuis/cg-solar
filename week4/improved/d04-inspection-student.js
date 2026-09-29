@@ -1,19 +1,47 @@
-/* 학생 확장 시작점. 여기에 본인이 설계한 관찰 인터페이스를 구현하세요.
-   제공 기준 버전은 이 파일을 비워 둔 상태입니다.
-
-   const viewer = window.InspectionViewer;
-   viewer.controls.state: target, distance, rotation(쿼터니언), fov
-   viewer.controls.camera(): 현재 eye/target/up
-   viewer.controls.home(): 기본 카메라로 복귀
-   viewer.model.poi: 주요 지점의 id/name/position/size/yaw/group
-   viewer.model.comparisons: O1/O2 비교 대상 members와 관찰 방향 viewDirection
-   viewer.model.tasks: 표지 관찰 6건 + 직교 비교 2건
-   viewer.hidden: 일시적으로 숨길 id 또는 group을 담는 Set
-   viewer.drawView({eye,target,up,fov,orthographic,halfHeight}, [x,y,w,h])
-     : viewport는 CSS 픽셀이 아닌 canvas.width/height 기준, 원점은 왼쪽 아래
-   viewer.render = (viewer) => { ... } : 기본 한 화면 그리기를 대체할 선택적 콜백
-   document.querySelector('#student-ui'): 본인이 만든 UI를 넣을 자리
-
-   기본 이벤트를 바꾸려면 d04-inspection-controls.js를 수정해도 됩니다.
-   중요한 정보는 실제 구조물과 함께 관찰하도록 하고, 답만 목록에 표시하지 마세요.
-*/
+/* 기존 학생 확장 지점에 카메라 설정 UI를 연결합니다. */
+(() => {
+  'use strict';
+  const viewer = window.InspectionViewer;
+  if (!viewer) return;
+  const {controls, canvas} = viewer;
+  const host = document.querySelector('#student-ui');
+  host.innerHTML = `
+    <h2>카메라 설정</h2>
+    <button class="btn primary" id="navigate" type="button">탐색 시작 · 마우스 잠금</button>
+    <p id="navigation-status" class="note" role="status">화면을 클릭하면 키보드 이동이 활성화됩니다. 드래그로 상하좌우 회전할 수 있습니다.</p>
+    <div class="ctl"><label for="move-speed">이동 속도 <output id="speed-value" for="move-speed"></output></label>
+      <input id="move-speed" type="range" min="0.2" max="12" step="0.2" value="4">
+      <div class="hint">작은 명판에 접근할 때 속도를 낮추세요.</div></div>
+    <div class="ctl"><label for="camera-fov">수직 FOV <output id="fov-value" for="camera-fov"></output></label>
+      <input id="camera-fov" type="range" min="30" max="90" step="1" value="60">
+      <div class="hint">작을수록 좁고 크게 보입니다. 카메라 위치는 유지됩니다.</div></div>
+    <div class="ctl"><label for="mouse-sensitivity">마우스 감도 <output id="sensitivity-value" for="mouse-sensitivity"></output></label>
+      <input id="mouse-sensitivity" type="range" min="0.5" max="5" step="0.1" value="2.5"></div>
+    <p class="note">회전 중심은 현재 카메라 위치입니다. 마우스로 상하좌우를 바라보며, 상하 회전은 ±89°로 제한됩니다. WASD는 수평 이동, Space / Shift는 높이 조절입니다. 벽과 바닥을 통과할 수 있습니다.</p>`;
+  const bindings = [
+    ['move-speed','speed-value','speed',1,v => v.toFixed(1) + ' m/s'],
+    ['camera-fov','fov-value','fov',1,v => v + '°'],
+    ['mouse-sensitivity','sensitivity-value','sensitivity',.001,v => (v * 180 / Math.PI).toFixed(2) + ' °/px']
+  ];
+  function sync() {
+    for (const [id, output, key, scale, format] of bindings) {
+      document.getElementById(id).value = controls.state[key] / scale;
+      document.getElementById(output).textContent = format(controls.state[key]);
+    }
+  }
+  for (const [id,,key,scale] of bindings) {
+    document.getElementById(id).addEventListener('input', e => {
+      controls.state[key] = Number(e.target.value) * scale;
+      sync();
+    });
+  }
+  document.querySelector('#navigate').addEventListener('click', controls.start);
+  canvas.addEventListener('navigationchange', e => {
+    document.querySelector('#navigation-status').textContent = e.detail.message;
+    document.querySelector('#navigate').textContent = e.detail.locked ? '탐색 중 · Esc로 해제' : '탐색 시작 · 마우스 잠금';
+    document.querySelector('.viewport').classList.toggle('navigating', e.detail.locked);
+  });
+  document.querySelector('#home').addEventListener('click', sync);
+  document.addEventListener('keydown', e => { if (e.code === 'Home') sync(); });
+  sync();
+})();

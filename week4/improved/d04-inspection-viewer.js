@@ -1,10 +1,9 @@
-/* WebGL2 렌더러. drawView를 여러 번 호출하면 분할 뷰를 구성할 수 있습니다.
-   기본 기능은 트랙볼/이동/거리 조절/전체 보기뿐이며 자동 안내는 구현하지 않습니다. */
+/* 제공 WebGL2 렌더러에 샌드박스 카메라의 프레임 갱신을 연결합니다. */
 (() => {
   'use strict';
   const canvas=document.querySelector('#cv'),gl=canvas.getContext('webgl2',{antialias:true}),read=document.querySelector('#readings');
   if(!gl){read.textContent='WebGL2를 사용할 수 없습니다. 지원하는 브라우저에서 열어 주세요.';return;}
-  const M=D.M4,model=window.InspectionModel,controls=window.InspectionControls(canvas);
+  const M=D.M4,model=window.InspectionModel,controls=window.InspectionControls(canvas,model.bounds);
   const program=D.program(gl,`#version 300 es
     layout(location=0) in vec3 aPos;layout(location=1) in vec3 aNormal;layout(location=2) in vec2 aUV;
     uniform mat4 uModel,uVP;uniform mat3 uNormal;out vec3 vN;out vec2 vUV;
@@ -53,11 +52,13 @@
   document.querySelector('#home').addEventListener('click',()=>{controls.home();controls.state.actions++;});
   document.querySelector('#measure').addEventListener('click',()=>{started=performance.now();controls.state.actions=0;});
   for(const p of model.tasks){const li=document.createElement('li');const title=document.createElement('strong');title.textContent=p.id+' '+p.name;li.append(title,document.createElement('br'),document.createTextNode(p.task));document.querySelector('#tasks').appendChild(li);}
-  D.loop(()=>{
+  D.loop((time,dt)=>{
     const r=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2),w=Math.max(1,Math.round(r.width*dpr)),h=Math.max(1,Math.round(r.height*dpr));
     if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+    controls.update(dt);
     if(api.render)api.render(api);else drawView(controls.camera());
-    const s=controls.state,value=`기본 트랙볼 · 거리 ${s.distance.toFixed(2)}m · FOV ${s.fov}°\n회전 중심 (${s.target.map(v=>v.toFixed(2)).join(', ')})\n측정 ${started===null?'시작 전':((performance.now()-started)/1000).toFixed(0)+'초'} · 기본 조작 ${s.actions}회`;
+    const s=controls.state,camera=controls.camera(),format=v=>v.map(n=>n.toFixed(2)).join(', ');
+    const value=`eye / 회전 중심 (${format(camera.eye)}) m\ntarget (${format(camera.target)}) · up (0, 1, 0)\nFOV ${s.fov}° · 속도 ${s.speed.toFixed(1)} m/s · yaw ${(s.yaw*180/Math.PI).toFixed(1)}° · pitch ${(s.pitch*180/Math.PI).toFixed(1)}°\n측정 ${started===null?'시작 전':((performance.now()-started)/1000).toFixed(0)+'초'} · 조작 ${s.actions}회`;
     if(value!==last){read.textContent=value;last=value;}
   });
 })();

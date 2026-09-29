@@ -290,7 +290,38 @@ html, body {
   line-height: 1.55;
 }
 
+/* 샌드박스 카메라 화면: 제공 테마와 패널 스타일을 확장합니다. */
+.wrap { grid-template-columns: minmax(0, 1fr) 20rem; height: 100vh; height: 100dvh; min-height: 540px; }
+.stage { display: grid; grid-template-rows: minmax(240px, 1fr) auto auto; align-items: stretch; justify-content: stretch; min-height: 0; }
+.viewport { position: relative; min-height: 0; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; cursor: grab; }
+.stage canvas:active { cursor: grabbing; }
+canvas:focus-visible { outline: 2px solid var(--d-accent); outline-offset: -2px; }
+.view-badge { position: absolute; top: 14px; left: 14px; padding: 4px 10px; border-radius: 5px; background: var(--d-bg); color: var(--d-muted); pointer-events: none; }
+.crosshair { display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: white; text-shadow: 0 1px 3px #000; font-size: 24px; pointer-events: none; }
+.navigating .crosshair { display: block; }
+.instructions { padding: 12px 16px 0; margin: 0; font-size: 12px; line-height: 1.9; }
+kbd { display: inline-block; margin-right: 3px; padding: 0 5px; border: 1px solid var(--d-line-strong); border-radius: 4px; background: var(--d-bg); font: inherit; }
+.readings { margin: 0; padding: 10px 16px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 monospace; color: var(--d-ink); }
+.panel { padding: 20px; }
+.panel h1 { font-size: 17px; }
+.panel h2 { font-size: 13px; margin: 20px 0 10px; }
+.primary { background: var(--d-accent); color: var(--d-bg); border-color: var(--d-accent); padding: 10px; }
+.primary:hover { color: var(--d-bg); filter: brightness(1.1); }
+.btn:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--d-accent); outline-offset: 3px; }
+.actions { display: flex; gap: 8px; margin-top: 16px; }
+.actions button { flex: 1; }
+.tasks { padding-left: 22px; font-size: 12px; }
+.tasks li { margin: 12px 0; }
+summary { cursor: pointer; font-weight: 600; }
+
+@media (max-width: 900px) {
+  .wrap { display: block; height: auto; }
+  .panel { border-left: 0; border-top: 1px solid var(--d-line); max-height: none; }
+  .stage { height: 100vh; height: 100dvh; min-height: 580px; }
+}
+
 @media (max-width: 620px) {
   .wrap { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
-  .panel { border-left: 0; border-top: 1px solid var(--d-line); max-height: 46vh; }
+  .panel { border-left: 0; border-top: 1px solid var(--d-line); max-height: none; }
 }
