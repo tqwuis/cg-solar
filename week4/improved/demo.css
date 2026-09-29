@@ -311,6 +311,8 @@ kbd { display: inline-block; margin-right: 3px; padding: 0 5px; border: 1px soli
 .btn:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--d-accent); outline-offset: 3px; }
 .actions { display: flex; gap: 8px; margin-top: 16px; }
 .actions button { flex: 1; }
+.view-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.view-modes .btn[aria-pressed="true"] { border-color: var(--d-accent); background: var(--d-accent-soft); color: var(--d-accent); }
 .tasks { padding-left: 22px; font-size: 12px; }
 .tasks li { margin: 12px 0; }
 summary { cursor: pointer; font-weight: 600; }

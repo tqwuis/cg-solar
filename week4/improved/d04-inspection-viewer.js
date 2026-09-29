@@ -58,7 +58,10 @@
     controls.update(dt);
     if(api.render)api.render(api);else drawView(controls.camera());
     const s=controls.state,camera=controls.camera(),format=v=>v.map(n=>n.toFixed(2)).join(', ');
-    const value=`eye / 회전 중심 (${format(camera.eye)}) m\ntarget (${format(camera.target)}) · up (0, 1, 0)\nFOV ${s.fov}° · 속도 ${s.speed.toFixed(1)} m/s · yaw ${(s.yaw*180/Math.PI).toFixed(1)}° · pitch ${(s.pitch*180/Math.PI).toFixed(1)}°\n측정 ${started===null?'시작 전':((performance.now()-started)/1000).toFixed(0)+'초'} · 조작 ${s.actions}회`;
+    const projectionInfo=camera.orthographic
+      ? `${s.mode==='front'?'전면':'오른쪽 측면'} 직교 · 세로 범위 ${(2*camera.halfHeight).toFixed(2)}m · 속도 ${s.speed.toFixed(1)} m/s`
+      : `자유 이동 · FOV ${s.fov}° · 속도 ${s.speed.toFixed(1)} m/s · yaw ${(s.yaw*180/Math.PI).toFixed(1)}° · pitch ${(s.pitch*180/Math.PI).toFixed(1)}°`;
+    const value=`eye (${format(camera.eye)}) m\ntarget (${format(camera.target)}) · up (0, 1, 0)\n${projectionInfo}\n측정 ${started===null?'시작 전':((performance.now()-started)/1000).toFixed(0)+'초'} · 조작 ${s.actions}회`;
     if(value!==last){read.textContent=value;last=value;}
   });
 })();
