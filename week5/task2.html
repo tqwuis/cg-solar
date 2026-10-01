@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#030912">
+<link rel="icon" href="data:,">
+<title>푸른 침묵 · 빙하 동굴 | 5주차 실습 2</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #030912; }
+  body { color: #d7ebf4; font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+  .title { position: fixed; top: 34px; left: 40px; pointer-events: none; text-shadow: 0 2px 18px #020710; }
+  .eyebrow { margin: 0 0 12px; color: #8cbdcf; font: 10px/1.5 Consolas, monospace; letter-spacing: 4px; }
+  h1 { margin: 0; font-size: 30px; font-weight: 300; letter-spacing: 8px; }
+  .subtitle { margin: 12px 0 0; color: #88a5b7; font-size: 11px; letter-spacing: 2px; }
+  .study { position: fixed; top: 38px; right: 40px; text-align: right; color: #7593a9; font: 10px/1.9 Consolas, monospace; letter-spacing: 2px; }
+  .study b { color: #bfd4e2; font-weight: normal; }
+  .controls { position: fixed; bottom: 28px; left: 40px; right: 40px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+  .caption { color: #7895aa; margin: 0 0 10px; font-size: 10px; letter-spacing: 2px; }
+  .lights, .actions { display: flex; gap: 7px; }
+  button { color: #bdcfdb; background: #061321d9; border: 1px solid #67869b40; border-radius: 3px; padding: 11px 13px; font: 11px "Malgun Gothic", sans-serif; cursor: pointer; }
+  button:hover { border-color: #9ee7ff99; background: #132739; }
+  button:focus-visible { outline: 2px solid #abeaff; outline-offset: 4px; }
+  button[aria-pressed="false"] { color: #657585; border-color: #37444d; background: #030910cc; }
+  kbd { font: 10px Consolas, monospace; color: #80a5bb; margin-right: 8px; }
+  .dot { display: inline-block; width: 5px; height: 5px; margin: 0 7px 1px 0; border-radius: 50%; background: var(--light); box-shadow: 0 0 8px var(--light); }
+  [aria-pressed="false"] .dot { background: #44505a; box-shadow: none; }
+  .hint { margin: 10px 0 0; font-size: 10px; color: #7d95a9; letter-spacing: .3px; }
+  .ui-hidden .interface { display: none; }
+  #status { position: fixed; bottom: 126px; left: 40px; color: #c5eaff; font-size: 12px; }
+  .error { position: fixed; inset: 35% 10% auto; padding: 24px; background: #071623; border: 1px solid #40627a; line-height: 1.8; }
+  @media (max-width: 650px) {
+    .title { top: 25px; left: 22px; } h1 { font-size: 25px; }
+    .study { display: none; } .controls { left: 18px; right: 18px; bottom: 20px; flex-wrap: wrap; gap: 14px; }
+    button { padding: 10px 9px; font-size: 10px; } .lights { gap: 5px; }
+    .actions button { padding: 8px 10px; } #status { left: 22px; bottom: 168px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="glcanvas" aria-label="청색과 청록색 빛으로 비춘 어두운 빙하 동굴. 드래그로 둘러보고 휠로 이동합니다."></canvas>
+<header class="title interface">
+  <p class="eyebrow">GLACIAL CAVERN</p>
+  <h1>푸른 침묵</h1>
+  <p class="subtitle">빛이 스며든 빙하의 안쪽</p>
+</header>
+<div class="study interface"><b>LIGHT &amp; MATERIAL</b><br>WEEK 05 / STUDY 02</div>
+<footer class="controls interface">
+  <div>
+    <p class="caption">세 개의 빛 · 눌러서 비교하기</p>
+    <div class="lights" aria-label="광원 켜기와 끄기">
+      <button type="button" data-light="0" aria-pressed="true" title="1: 청색 방향광 — 동굴의 윤곽" style="--light:#769bff"><kbd>1</kbd><span class="dot"></span>틈새의 빛</button>
+      <button type="button" data-light="1" aria-pressed="true" title="2: 청록색 점광원 — 얼음 결정과 가까운 벽" style="--light:#71eaff"><kbd>2</kbd><span class="dot"></span>얼음의 빛</button>
+      <button type="button" data-light="2" aria-pressed="true" title="3: 연보라색 스포트라이트 — 얼어붙은 바닥" style="--light:#d6c9ff"><kbd>3</kbd><span class="dot"></span>천장의 빛</button>
+    </div>
+    <p class="hint">드래그 · 둘러보기 &nbsp; 휠 · 앞뒤 이동 &nbsp; H · 화면 안내 숨기기</p>
+  </div>
+  <div class="actions">
+    <button type="button" id="reset"><kbd>R</kbd>처음 시점</button>
+    <button type="button" id="capture"><kbd>S</kbd>장면 저장</button>
+  </div>
+</footer>
+<p id="status" class="interface" role="status" aria-live="polite"></p>
+<script>
+'use strict';
+/*
+  5주차 실습 2 — 푸른 침묵
+  요구 사항: https://cg.catholic.ac.kr/~mgchoi/CG/weeks/week05/#task2
+
+  의도: 동굴 안에서 먼 어둠을 바라본다. 푸른 윤곽, 청록색 얼음,
+        바닥에 닿는 연보라색 빛으로 차갑고 고요한 깊이를 만든다.
+  기존 코드 활용: task1의 makeSphere / makePlane, 행렬 도구, VAO 생성,
+        Phong 조명, 드래그·휠 카메라를 확장했다. 벽, 천장, 고드름,
+        얼음 결정, 바위, 광원 표시는 모두 같은 구 메시의 변형·반복이다.
+  광원: [1] 청색 directional / [2] 청록색 point / [3] 연보라색 spot.
+  재질: 눈(낮은 shininess), 암석(약한 반사), 빙벽, 얼음 바닥,
+        결정(높은 shininess)을 baseColor / shininess / ks로 구분한다.
+  모든 조명 계산은 월드 좌표에서 한다. ambient는 한 번만 더한다.
+  비균일 스케일에 맞게 법선 행렬의 역전치를 수정하고 실제로 적용했다.
+  S 버튼은 현재 조합의 광원 상태를 파일명에 넣어 캔버스만 저장한다.
+*/
+
+// 1. 실습 1의 구와 평면 메시를 그대로 재사용한다.
+function makeSphere(seg) {
+  const positions = [], normals = [], indices = [];
+  for (let i = 0; i <= seg; i++) {
+    const phi = Math.PI * i / seg;                 // 0(북극) ~ π(남극)
+    for (let j = 0; j <= seg * 2; j++) {
+      const th = 2 * Math.PI * j / (seg * 2);
+      const x = Math.sin(phi) * Math.cos(th);
+      const y = Math.cos(phi);
+      const z = Math.sin(phi) * Math.sin(th);
+      positions.push(x, y, z);
+      normals.push(x, y, z);                       // 반지름 1 이므로 위치 = 법선
+    }
+  }
+  const W = seg * 2 + 1;
+  for (let i = 0; i < seg; i++) {
+    for (let j = 0; j < seg * 2; j++) {
+      const a = i * W + j, b = a + W;
+      indices.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  return { positions: new Float32Array(positions),
+           normals:   new Float32Array(normals),
+           indices:   new Uint16Array(indices) };
+}
+
+// 바닥: y = 0 평면. 법선은 전부 위쪽 (0,1,0).
+function makePlane(size) {
+  const s = size / 2;
+  return {
+    positions: new Float32Array([-s,0,-s,  s,0,-s,  s,0,s,  -s,0,s]),
+    normals:   new Float32Array([ 0,1,0,   0,1,0,   0,1,0,   0,1,0 ]),
+    indices:   new Uint16Array([0, 1, 2, 0, 2, 3]),
+  };
+}
+
+
+// 낮은 분할 수의 기존 구에서 삼각형별 법선을 구해 각진 얼음으로 쓴다.
+// 실습 1의 구 인덱스 순서와 관계없이 법선이 바깥쪽을 향하도록 확인한다.
+function facetedSphere(seg) {
+  const source = makeSphere(seg), positions = [], normals = [], indices = [];
+  for (let i = 0; i < source.indices.length; i += 3) {
+    const points = [0, 1, 2].map(k => {
+      const n = source.indices[i + k] * 3;
+      return Array.from(source.positions.slice(n, n + 3));
+    });
+    const [a, b, c] = points;
+    const u = b.map((n, k) => n - a[k]), v = c.map((n, k) => n - a[k]);
+    let normal = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    const length = Math.hypot(...normal);
+    if (length < 1e-7) continue; // 극점의 면적 0인 삼각형은 생략한다.
+    const sign = normal.reduce((s, n, k) => s + n*a[k], 0) < 0 ? -1 : 1;
+    normal = normal.map(n => sign*n/length);
+    for (const point of points) {
+      indices.push(indices.length); positions.push(...point); normals.push(...normal);
+    }
+  }
+  return { positions: new Float32Array(positions), normals: new Float32Array(normals), indices: new Uint16Array(indices) };
+}
+
+// 2. 버텍스 셰이더: 위치와 법선을 같은 월드 좌표계로 보낸다.
+const VS_SOURCE = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNormal;
+uniform mat4 uModel, uView, uProj;
+uniform mat3 uNormalMat;
+out vec3 vWorldPos;
+out vec3 vNormal;
+void main() {
+  vec4 world = uModel * vec4(aPos, 1.0);
+  vWorldPos = world.xyz;
+  vNormal = uNormalMat * aNormal;
+  gl_Position = uProj * uView * world;
+}
+`;
+
+// 3. Phong 조명: 서로 다른 종류의 빛도 같은 diffuse + specular 식을 쓴다.
+const FS_SOURCE = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNormal;
+uniform vec3 uBaseColor, uViewPos;
+uniform vec3 uDirToLight, uDirColor;
+uniform vec3 uLightPos, uLightColor;
+uniform vec3 uSpotPos, uSpotDir, uSpotColor;
+uniform vec2 uSpotCutoff;
+uniform vec3 uLightEnabled;
+uniform float uShininess, uSpecular;
+uniform int uSurface;
+uniform bool uEmissive;
+out vec4 fragColor;
+
+vec3 shade(vec3 N, vec3 V, vec3 L, vec3 lightColor, vec3 base) {
+  float lambert = max(dot(N, L), 0.0);
+  vec3 diffuse = lambert * base * lightColor;
+  // 빛이 표면 뒤쪽에 있으면 정반사도 0으로 처리한다.
+  float highlight = 0.0;
+  if (lambert > 0.0) {
+    vec3 R = reflect(-L, N);
+    highlight = pow(max(dot(R, V), 0.0), uShininess);
+  }
+  return diffuse + uSpecular * highlight * lightColor;
+}
+
+void main() {
+  vec3 N = normalize(vNormal);
+  vec3 V = normalize(uViewPos - vWorldPos);
+  vec3 base = uBaseColor;
+  // 텍스처 이미지 없이 얇은 빙하 층과 얼음 바닥의 균열을 표현한다.
+  if (uSurface == 0) {
+    float layer = sin(vWorldPos.y * 10.0 + sin(vWorldPos.z * 0.7) * 1.3 + vWorldPos.x * 0.5);
+    base *= 0.88 + 0.12 * smoothstep(-0.8, 0.8, layer);
+  }
+  if (uSurface == 1) {
+    vec2 p = vWorldPos.xz;
+    float vein = abs(sin(p.x * 1.7 + p.y * 0.51 + sin(p.y * 0.9) * 1.5));
+    float vein2 = abs(sin(p.y * 1.05 - p.x * 0.8 + sin(p.x * 1.8)));
+    float width = max(fwidth(vein), 0.008);
+    float cracks = (1.0 - smoothstep(0.0, width * 1.4, vein))
+                 * (0.35 + 0.65 * smoothstep(0.85, 1.0, vein2));
+    base = mix(base, vec3(0.22, 0.43, 0.51), cracks * 0.55);
+    N = normalize(N + vec3(0.025*sin(p.y*2.4), 0.0, 0.018*sin(p.x*3.0)));
+  }
+  vec3 color;
+  if (uEmissive) {
+    color = base; // 광원 표시는 자체발광이며 조명 계산을 생략한다.
+  } else {
+    color = vec3(0.012, 0.020, 0.035) * base; // ambient는 한 번만
+    color += uLightEnabled.x * shade(N, V, normalize(uDirToLight), uDirColor, base);
+
+    vec3 toPoint = uLightPos - vWorldPos;
+    float pointD = length(toPoint);
+    float pointAtt = 1.0 / (1.0 + 0.08*pointD + 0.055*pointD*pointD);
+    color += uLightEnabled.y * pointAtt * shade(N, V, normalize(toPoint), uLightColor, base);
+
+    vec3 toSpot = uSpotPos - vWorldPos;
+    float spotD = length(toSpot);
+    vec3 spotL = normalize(toSpot);
+    float spotCos = dot(normalize(uSpotDir), -spotL);
+    float cone = smoothstep(uSpotCutoff.y, uSpotCutoff.x, spotCos);
+    float spotAtt = 1.0 / (1.0 + 0.035*spotD*spotD);
+    color += uLightEnabled.z * cone * spotAtt * shade(N, V, spotL, uSpotColor, base);
+  }
+  // 멀리 있는 벽을 짙은 남색으로 감춰 터널의 깊이를 표현한다.
+  float distanceToEye = length(uViewPos - vWorldPos);
+  float fog = 1.0 - exp(-0.00085 * distanceToEye * distanceToEye);
+  color = mix(color, vec3(0.002, 0.006, 0.014), fog);
+  color = color / (vec3(1.0) + color); // Reinhard tone mapping
+  color = pow(max(color, vec3(0.0)), vec3(1.0/2.2)); // 감마 보정
+  fragColor = vec4(color, 1.0);
+}
+`;
+
+// 4. 실습 1의 행렬 도구. normalFromMat4의 반환값을 역전치로 수정했다.
+const Mat4 = {
+  identity: function () {
+    return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+  },
+  multiply: function (a, b) {                     // a * b
+    const o = new Float32Array(16);
+    for (let c = 0; c < 4; c++) {
+      for (let r = 0; r < 4; r++) {
+        let s = 0;
+        for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+        o[c * 4 + r] = s;
+      }
+    }
+    return o;
+  },
+  translate: function (x, y, z) {
+    const m = Mat4.identity(); m[12] = x; m[13] = y; m[14] = z; return m;
+  },
+  scale: function (x, y, z) {
+    const m = Mat4.identity(); m[0] = x; m[5] = y; m[10] = z; return m;
+  },
+  rotateY: function (r) {
+    const m = Mat4.identity(), c = Math.cos(r), s = Math.sin(r);
+    m[0] = c; m[2] = -s; m[8] = s; m[10] = c; return m;
+  },
+  perspective: function (fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+    return new Float32Array([f / aspect,0,0,0, 0,f,0,0,
+                             0,0,(far + near) * nf,-1, 0,0,2 * far * near * nf,0]);
+  },
+  lookAt: function (eye, center, up) {
+    let zx = eye[0]-center[0], zy = eye[1]-center[1], zz = eye[2]-center[2];
+    const zl = Math.hypot(zx, zy, zz) || 1; zx/=zl; zy/=zl; zz/=zl;
+    let xx = up[1]*zz - up[2]*zy, xy = up[2]*zx - up[0]*zz, xz = up[0]*zy - up[1]*zx;
+    const xl = Math.hypot(xx, xy, xz) || 1; xx/=xl; xy/=xl; xz/=xl;
+    const yx = zy*xz - zz*xy, yy = zz*xx - zx*xz, yz = zx*xy - zy*xx;
+    return new Float32Array([
+      xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
+      -(xx*eye[0]+xy*eye[1]+xz*eye[2]),
+      -(yx*eye[0]+yy*eye[1]+yz*eye[2]),
+      -(zx*eye[0]+zy*eye[1]+zz*eye[2]), 1]);
+  },
+  // 법선 행렬 = transpose(inverse(model)) 의 좌상단 3×3
+  normalFromMat4: function (m) {
+    const a00=m[0],a01=m[1],a02=m[2], a10=m[4],a11=m[5],a12=m[6],
+          a20=m[8],a21=m[9],a22=m[10];
+    const b01 =  a22*a11 - a12*a21, b11 = -a22*a10 + a12*a20, b21 = a21*a10 - a11*a20;
+    let det = a00*b01 + a01*b11 + a02*b21;
+    if (!det) return new Float32Array([1,0,0, 0,1,0, 0,0,1]);
+    det = 1 / det;
+    return new Float32Array([
+      b01*det, b11*det, b21*det,
+      (-a22*a01 + a02*a21)*det, (a22*a00 - a02*a20)*det, (-a21*a00 + a01*a20)*det,
+      (a12*a01 - a02*a11)*det, (-a12*a00 + a02*a10)*det, (a11*a00 - a01*a10)*det]);
+  },
+};
+
+
+// 5. WebGL2 준비. 외부 라이브러리나 이미지 없이 파일 하나로 실행된다.
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, preserveDrawingBuffer: true });
+function showError(message) {
+  const p = document.createElement('p'); p.className = 'error'; p.textContent = message;
+  document.body.appendChild(p);
+}
+if (!gl) {
+  showError('WebGL2를 사용할 수 없습니다. 하드웨어 가속을 지원하는 Chrome 또는 Edge에서 열어 주세요.');
+  throw new Error('WebGL2 unavailable');
+}
+window.addEventListener('error', e => showError('장면을 그리는 중 오류가 발생했습니다: ' + e.message));
+canvas.addEventListener('webglcontextlost', e => {
+  e.preventDefault(); showError('그래픽 연결이 끊어졌습니다. 페이지를 새로고침해 주세요.');
+});
+function compileShader(type, source) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, source);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    const kind = (type === gl.VERTEX_SHADER) ? '버텍스' : '프래그먼트';
+    throw new Error(kind + ' 셰이더 오류\n' + gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+function createProgram(vsSource, fsSource) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsSource));
+  gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSource));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    throw new Error('링크 오류\n' + gl.getProgramInfoLog(p));
+  }
+  return p;
+}
+const program = createProgram(VS_SOURCE, FS_SOURCE);
+
+// uniform 의 위치를 이름으로 한 번만 찾아 둔다
+const U = {};
+['uModel','uView','uProj','uNormalMat','uBaseColor','uLightPos','uLightColor',
+ 'uSpotPos','uSpotDir','uSpotColor',
+ 'uViewPos','uShininess','uEmissive','uSpecular','uSurface',
+ 'uDirToLight','uDirColor','uSpotCutoff','uLightEnabled'].forEach(function (n) {
+  U[n] = gl.getUniformLocation(program, n);
+});
+
+function createMesh(mesh) {
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  function attribute(data, location, size) {
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(location);
+    gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
+  }
+  attribute(mesh.positions, 0, 3);      // location 0 ← aPos
+  attribute(mesh.normals,   1, 3);      // location 1 ← aNormal
+  const ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  return { vao: vao, count: mesh.indices.length };
+}
+
+
+const sphere = createMesh(makeSphere(24));
+const ice = createMesh(facetedSphere(7));
+const crystal = createMesh(facetedSphere(4));
+const plane = createMesh(makePlane(16));
+gl.enable(gl.DEPTH_TEST);
+
+// 6. 재질과 동굴 배치. 새 모델 대신 구의 크기·회전·위치만 바꿔 배치한다.
+const materials = {
+  wall:    { color: [0.20, 0.39, 0.56], shine: 72,  ks: 0.42, surface: 0 },
+  darkIce: { color: [0.095,0.22, 0.34], shine: 96,  ks: 0.55, surface: 0 },
+  crystal: { color: [0.33, 0.70, 0.78], shine: 160, ks: 0.95, surface: 0 },
+  floor:   { color: [0.10, 0.22, 0.31], shine: 128, ks: 0.80, surface: 1 },
+  rock:    { color: [0.085,0.105,0.14], shine: 6,   ks: 0.07, surface: 2 },
+  snow:    { color: [0.47, 0.58, 0.64], shine: 12,  ks: 0.10, surface: 2 },
+};
+function rotateZ(r) {
+  const m = Mat4.identity(), c = Math.cos(r), s = Math.sin(r);
+  m[0] = c; m[1] = s; m[4] = -s; m[5] = c; return m;
+}
+function modelAt(position, scale, yaw = 0, lean = 0) {
+  let m = Mat4.multiply(Mat4.translate(...position), Mat4.rotateY(yaw));
+  m = Mat4.multiply(m, rotateZ(lean));
+  return Mat4.multiply(m, Mat4.scale(...scale));
+}
+const objects = [];
+function add(mesh, position, scale, material, yaw = 0, lean = 0) {
+  const model = modelAt(position, scale, yaw, lean);
+  objects.push({ mesh, model, normal: Mat4.normalFromMat4(model), material });
+}
+// 고정 seed로 같은 배치를 유지하여 광원별 캡처를 비교할 수 있게 한다.
+let seed = 507;
+function random() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
+add(plane, [0, -0.08, -10], [0.95, 1, 3.8], materials.floor);
+
+// 카메라 앞뒤를 둘러싼 아치. 안쪽으로 갈수록 조금씩 좁아진다.
+for (let ring = 0; ring < 12; ring++) {
+  const z = 13 - ring * 3.4;
+  const width = 6.2 - Math.max(0, ring - 3) * 0.13;
+  for (let j = 0; j <= 8; j++) {
+    const angle = j * Math.PI / 8;
+    const x = Math.cos(angle) * width;
+    const y = 0.7 + Math.sin(angle) * 6.5;
+    const size = [1.7 + random()*0.6, 1.9 + random()*0.65, 2.1 + random()*0.7];
+    add(ice, [x + (random()-.5)*.6, y, z], size,
+      random() > .35 ? materials.wall : materials.darkIce, random()*.8, (random()-.5)*.45);
+  }
+}
+// 막힌 맨 안쪽 벽에도 같은 구를 사용한다.
+for (let j = -2; j <= 2; j++) add(ice, [j*2.2, 2.5, -28], [2.2, 3.8, 2], materials.darkIce, j*.3);
+
+// 천장에 매달린 고드름도 분할 수가 적은 구를 가늘고 길게 늘려 만든다.
+for (let i = 0; i < 46; i++) {
+  const x = (random()-.5)*9, z = 6 - random()*30;
+  const roof = 0.7 + 6.5*Math.sqrt(Math.max(0, 1-(x/6.2)**2)) - 1.3;
+  const length = 0.6 + random()*1.3;
+  add(crystal, [x, roof-length*.25, z], [.11+random()*.19, length, .15+random()*.15],
+    materials.crystal, random()*Math.PI, (random()-.5)*.18);
+}
+
+// 벽을 따라 얼음 덩어리와 무광 암석을 놓고, 바닥 가운데는 비워 깊이를 드러낸다.
+for (let i = 0; i < 32; i++) {
+  const side = i%2 ? 1 : -1, z = 7 - random()*31;
+  const x = side*(3.9+random()*1.0), size = .3+random()*.65;
+  add(i%3 ? ice : sphere, [x, size*.35, z], [size*1.35, size*.65, size],
+    i%4 ? materials.darkIce : materials.rock, random()*3);
+  if (i%4 === 0) add(sphere, [x, size*.8, z], [size*.9, size*.13, size*.75], materials.snow);
+}
+
+// 왼쪽의 큰 얼음 결정 무리. 점광원이 가까운 면을 강하게 비춘다.
+const cluster = [[-2.7,-5.7,2.0,.46,-.12], [-3.5,-6.6,1.35,.38,.25],
+  [-1.9,-6.4,1.15,.32,-.28], [-3.1,-7.2,2.6,.5,.10], [-2.15,-5.2,.65,.29,.32]];
+for (const [x,z,height,radius,lean] of cluster) {
+  add(crystal, [x,height*.72,z], [radius,height,radius*.85], materials.crystal, x, lean);
+}
+// 오른쪽 결정은 스포트라이트 가장자리의 빛을 받으며 무광 암석과 대비된다.
+add(crystal, [3.35,1.3,-4.0], [.50,1.8,.55], materials.wall, .3, -.18);
+add(crystal, [3.9,.8,-3.4], [.35,1.1,.38], materials.crystal, -.4, .25);
+add(ice, [1.6,.18,-1.8], [.62,.28,.55], materials.rock, .7);
+add(ice, [-1.1,.10,2.0], [.38,.20,.30], materials.rock, -.3);
+
+// 광원 위치와 방향은 월드 좌표에 고정하여 카메라와 함께 움직이지 않는다.
+const lights = [true, true, true];
+const lightPos = [-2.65, 1.65, -5.15];
+const spotPos = [2.5, 4.65, -2.0];
+const spotDir = [-0.34, -0.79, -0.51];
+const defaultCam = { yaw: 0.012, pitch: 0.044, dist: 17.5 };
+const cam = { ...defaultCam };
+const target = [0, 1.6, -7];
+
+// 7. 실습 1의 드래그·휠 조작을 동굴 내부를 둘러보는 범위로 제한한다.
+let pointer = null, lastX = 0, lastY = 0;
+canvas.addEventListener('pointerdown', e => {
+  if (pointer !== null || e.button !== 0) return;
+  pointer = e.pointerId; lastX = e.clientX; lastY = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerId !== pointer) return;
+  // 카메라가 구로 만든 벽이나 천장 안으로 들어가지 않는 범위만 허용한다.
+  cam.yaw = Math.max(-.12, Math.min(.12, cam.yaw + (e.clientX-lastX)*.0014));
+  cam.pitch = Math.max(-.035, Math.min(.10, cam.pitch + (e.clientY-lastY)*.0012));
+  lastX = e.clientX; lastY = e.clientY;
+});
+function stopDrag(e) {
+  if (pointer !== e.pointerId) return;
+  pointer = null;
+  if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+}
+canvas.addEventListener('pointerup', stopDrag);
+canvas.addEventListener('pointercancel', stopDrag);
+canvas.addEventListener('lostpointercapture', () => { pointer = null; });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault(); cam.dist = Math.max(12, Math.min(20, cam.dist*Math.exp(e.deltaY*.0007)));
+}, { passive: false });
+
+const buttons = Array.from(document.querySelectorAll('[data-light]'));
+function toggleLight(index) {
+  lights[index] = !lights[index];
+  buttons[index].setAttribute('aria-pressed', String(lights[index]));
+}
+buttons.forEach((button, i) => button.addEventListener('click', () => toggleLight(i)));
+function resetCamera() { Object.assign(cam, defaultCam); }
+document.getElementById('reset').addEventListener('click', resetCamera);
+document.addEventListener('keydown', e => {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  const key = e.key.toLowerCase();
+  if (['1','2','3'].includes(key)) { e.preventDefault(); toggleLight(Number(key)-1); }
+  if (key === 'r') resetCamera();
+  if (key === 'h') document.body.classList.toggle('ui-hidden');
+  if (key === 's') { e.preventDefault(); saveCapture(); }
+});
+let statusTimer;
+function saveCapture() {
+  renderScene();
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob), link = document.createElement('a');
+    link.href = url;
+    link.download = 'task2-lights-' + lights.map((on,i) => on ? i+1 : 'off').join('-') + '.png';
+    link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    document.getElementById('status').textContent = '현재 광원 조합의 장면을 저장했습니다.';
+    clearTimeout(statusTimer); statusTimer = setTimeout(() => { document.getElementById('status').textContent = ''; }, 3000);
+  }, 'image/png');
+}
+document.getElementById('capture').addEventListener('click', saveCapture);
+
+// 8. 고정된 물체의 모델 행렬과 법선 행렬을 미리 계산해 재사용한다.
+function draw(mesh, model, normal, material, emissive = false) {
+  gl.uniformMatrix4fv(U.uModel, false, model);
+  gl.uniformMatrix3fv(U.uNormalMat, false, normal);
+  gl.uniform3fv(U.uBaseColor, material.color);
+  gl.uniform1f(U.uShininess, material.shine);
+  gl.uniform1f(U.uSpecular, material.ks);
+  gl.uniform1i(U.uSurface, material.surface);
+  gl.uniform1i(U.uEmissive, emissive ? 1 : 0);
+  gl.bindVertexArray(mesh.vao);
+  gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_SHORT, 0);
+}
+const markers = [
+  { pos: lightPos, size: [.095,.16,.095], color: [.4,3.4,4.5], light: 1 },
+  { pos: spotPos, size: [.075,.11,.075], color: [2.2,1.9,3.2], light: 2 },
+].map(marker => {
+  const model = modelAt(marker.pos, marker.size);
+  return { ...marker, model, normal: Mat4.normalFromMat4(model) };
+});
+
+function renderScene() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+  const width = Math.max(1, Math.floor(canvas.clientWidth*dpr));
+  const height = Math.max(1, Math.floor(canvas.clientHeight*dpr));
+  if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+  gl.viewport(0, 0, width, height);
+  gl.clearColor(.018, .035, .064, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  const cp = Math.cos(cam.pitch);
+  const eye = [target[0]+Math.sin(cam.yaw)*cp*cam.dist,
+    target[1]+Math.sin(cam.pitch)*cam.dist, target[2]+Math.cos(cam.yaw)*cp*cam.dist];
+  const view = Mat4.lookAt(eye, target, [0,1,0]);
+  const proj = Mat4.perspective(Math.PI/3.1, width/height, .08, 90);
+  gl.useProgram(program);
+  gl.uniformMatrix4fv(U.uView, false, view);
+  gl.uniformMatrix4fv(U.uProj, false, proj);
+  gl.uniform3fv(U.uViewPos, eye);
+  gl.uniform3f(U.uDirToLight, .35, .8, .25);
+  gl.uniform3f(U.uDirColor, .045, .085, .21);
+  gl.uniform3fv(U.uLightPos, lightPos);
+  gl.uniform3f(U.uLightColor, .22, 2.25, 3.2);
+  gl.uniform3fv(U.uSpotPos, spotPos);
+  gl.uniform3fv(U.uSpotDir, spotDir);
+  gl.uniform3f(U.uSpotColor, 3.5, 2.95, 4.8);
+  gl.uniform2f(U.uSpotCutoff, Math.cos(18*Math.PI/180), Math.cos(30*Math.PI/180));
+  gl.uniform3fv(U.uLightEnabled, lights.map(Number));
+  for (const o of objects) draw(o.mesh, o.model, o.normal, o.material);
+  for (const marker of markers) {
+    if (!lights[marker.light]) continue;
+    draw(sphere, marker.model, marker.normal,
+      { color: marker.color, shine: 1, ks: 0, surface: 2 }, true);
+  }
+  gl.bindVertexArray(null);
+}
+function render() { renderScene(); requestAnimationFrame(render); }
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
