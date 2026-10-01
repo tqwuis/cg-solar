@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>복합 연구시설 — 샌드박스 카메라</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <main class="wrap">
+    <section class="stage" aria-label="연구시설 탐색 화면">
+      <div class="viewport">
+        <canvas id="cv" tabindex="0" aria-label="다층 연구시설의 3차원 모델" aria-describedby="instructions">WebGL2를 지원하는 브라우저에서 실행하세요.</canvas>
+        <span class="view-badge">자유 이동 · Y축 고정</span>
+        <span class="crosshair" aria-hidden="true">+</span>
+      </div>
+      <p class="instructions" id="instructions"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 앞뒤·좌우 이동
+        · <kbd>Space</kbd> 상승 · <kbd>Shift</kbd> 하강<br>
+        마우스 이동: 상하좌우 회전 · <kbd>Esc</kbd> 마우스 해제 · <kbd>Home</kbd> 전체 보기<br>
+        화면을 클릭해 이동하거나, 오른쪽 ‘탐색 시작’으로 마우스를 잠그세요. 잠금 없이 드래그 회전도 가능합니다.</p>
+      <pre class="readings" id="readings" aria-label="현재 카메라 정보"></pre>
+    </section>
+    <aside class="panel" aria-label="탐색 설정 및 관찰 과제">
+      <h1>복합 연구시설 관찰</h1>
+      <p class="sub">샌드박스 카메라로 시설 안팎을 탐색하고 표지 6곳과 비교 대상 2곳을 관찰하세요.</p>
+      <div id="student-ui"></div>
+      <div class="actions">
+        <button class="btn" id="home" type="button">전체 보기 · Home</button>
+        <button class="btn" id="measure" type="button">측정 시작 / 초기화</button>
+      </div>
+      <details>
+        <summary>관찰 과제 8개</summary>
+        <ol class="tasks" id="tasks"></ol>
+      </details>
+      <p class="note">건물 규모 약 20m · 가장 작은 명판 폭 0.28m. 명판은 한쪽 면에만 글자가 있습니다. O1·O2는 높이·폭·돌출을 비교하는 과제입니다.</p>
+    </aside>
+  </main>
+  <script src="demo.js"></script>
+  <script src="d04-inspection-model.js?v=3f1b6bc733"></script>
+  <script src="d04-inspection-controls.js?v=sandbox3"></script>
+  <script src="d04-inspection-viewer.js?v=sandbox3"></script>
+  <script src="d04-inspection-student.js?v=sandbox3"></script>
+</body>
+</html>

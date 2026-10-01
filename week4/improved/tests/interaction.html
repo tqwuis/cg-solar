@@ -1,0 +1,83 @@
+<!doctype html><meta charset="utf-8"><iframe id="app" src="../index.html?theme=light" style="width:1200px;height:1000px"></iframe><pre id="result">PENDING</pre>
+<script>
+app.onload=()=>{
+ const w=app.contentWindow,d=w.document,v=w.InspectionViewer,out=[];
+ const assert=(x,m='assertion failed')=>{if(!x)throw Error(m)};
+ const near=(a,b)=>assert(Math.abs(a-b)<1e-7,`${a} != ${b}`);
+ const equal=(a,b)=>assert(JSON.stringify(a)===JSON.stringify(b));
+ const test=(n,f)=>{try{f();out.push('PASS '+n)}catch(e){out.push('FAIL '+n+': '+e.message)}};
+ if(!v){result.textContent='FAIL initialization';return}
+ const c=v.controls,cv=v.canvas,pick=w.InspectionPicking;
+ const pose=(sign,yaw=sign.yaw,distance=2)=>{c.setMode('orbit');c.home();c.state.target=[...sign.position];c.state.yaw=yaw;c.state.distance=distance;};
+ const advance=seconds=>{for(let left=seconds;left>1e-8;left-=.05)c.update(Math.min(.05,left));};
+ const settle=()=>advance(1);
+ const pixel=sign=>pick.project(c.camera(),cv.getBoundingClientRect(),sign.position);
+ const event=(type,code,extra={})=>cv.dispatchEvent(new w.KeyboardEvent(type,{code,key:code==='Space'?' ':code,bubbles:true,cancelable:true,...extra}));
+ const p5=v.model.signs.find(s=>s.id==='P5');
+ test('WebGL initialization and eight observation tasks',()=>{assert(d.querySelectorAll('.task-card').length===8);v.drawView(c.camera());assert(v.gl.getError()===v.gl.NO_ERROR)});
+ test('opaque structures block nameplate picking',()=>{pose(p5,0,12);v.transparent=false;const p=pixel(p5);assert(v.pickSign(p.x,p.y)===null);assert(v.visibleSign('P5')===null)});
+ test('Space reveals obstructed nameplate and repeat does not toggle',()=>{event('keydown','Space');assert(v.transparent);const p=pixel(p5);assert(v.pickSign(p.x,p.y).id==='P5');assert(v.visibleSign('P5'));event('keydown','Space',{repeat:true});assert(v.transparent)});
+ test('selecting rear plate focuses front, changes pivot and highlights',()=>{v.selectSign(p5);settle();equal(c.state.target,p5.position);near(c.state.yaw,Math.PI);assert(c.camera().eye[2]<p5.position[2]);assert(v.selectedId==='P5');assert(!d.querySelector('#selection-card').hidden)});
+ test('camera zoom clears selection',()=>{c.zoom(1.1);assert(v.selectedId===null);assert(d.querySelector('#selection-card').hidden)});
+ test('every nameplate is ray-pickable from its front',()=>{v.transparent=true;for(const s of v.model.signs){pose(s);const p=pixel(s);assert(v.pickSign(p.x,p.y)?.id===s.id,s.id)}});
+ test('offscreen and behind-camera signs cannot be picked',()=>{pose(p5);assert(v.pickSign(-10,-10)===null);const cam=c.camera(),behind=cam.eye.map((x,i)=>x+(cam.eye[i]-cam.target[i]));assert(pick.project(cam,cv.getBoundingClientRect(),behind)===null)});
+ test('transparent depth still selects the nearest nameplate',()=>{const model={boxes:[],signs:[{id:'far',position:[0,0,0],size:[1,1],yaw:0},{id:'near',position:[0,0,1],size:[1,1],yaw:0}]};const cam={eye:[0,0,4],target:[0,0,0],up:[0,1,0],fov:45};assert(pick.pick(cam,{left:0,top:0,width:100,height:100},50,50,model,true).id==='near')});
+ cv.setPointerCapture=()=>{};cv.hasPointerCapture=()=>false;
+ const pointer=(type,x,y,extra={})=>cv.dispatchEvent(new w.PointerEvent(type,{pointerId:1,button:0,clientX:x,clientY:y,...extra}));
+ test('drag is horizontal-only orbit and does not click-select',()=>{pose(p5,0);v.selectedId=null;const a=c.camera();pointer('pointerdown',100,100);pointer('pointermove',100,180);pointer('pointerup',100,180);equal(c.camera(),a);pointer('pointerdown',100,100);pointer('pointermove',140,140);pointer('pointerup',140,140);near(c.state.yaw,-.24);near(c.camera().eye[1],a.eye[1]);equal(c.camera().up,[0,1,0]);assert(v.selectedId===null)});
+ test('Shift drag pans, interrupts animation and clears outline',()=>{v.selectSign(p5);advance(.2);const a=c.camera();pointer('pointerdown',100,100,{shiftKey:true});pointer('pointermove',130,140);pointer('pointerup',130,140);assert(c.camera().target[1]>a.target[1]);assert(v.selectedId===null);assert(!c.transitioning);const b=c.camera();settle();equal(c.camera(),b)});
+ test('click without drag picks geometry',()=>{pose(p5);const p=pixel(p5);pointer('pointerdown',p.x,p.y);pointer('pointerup',p.x,p.y);assert(v.selectedId==='P5')});
+ test('Space does not affect text inputs',()=>{const input=d.createElement('input');d.body.append(input);const a=v.transparent;input.dispatchEvent(new w.KeyboardEvent('keydown',{code:'Space',bubbles:true}));assert(v.transparent===a);input.remove()});
+ test('orthographic modes preserve original orbit pose',()=>{pose(p5,.2,4);const a=c.camera();c.setMode('front');c.zoom(.7);c.setMode('side');c.home();c.setMode('orbit');equal(c.camera(),a)});
+ test('orthographic WASD and drag pan without rotation',()=>{c.setMode('side');const a=c.camera();cv.focus();event('keydown','KeyD');c.update(.05);event('keyup','KeyD');near(c.camera().target[2]-a.target[2],-.4);pointer('pointerdown',100,100);pointer('pointermove',130,140);pointer('pointerup',130,140);const b=c.camera();b.eye.forEach((x,i)=>near(x-b.target[i],a.eye[i]-a.target[i]))});
+ test('both comparison shortcuts frame correct projection',()=>{for(const task of v.model.comparisons){c.focusComparison(task);assert(c.state.mode===(task.id==='O1'?'front':'side'));assert(c.camera().orthographic);v.drawView(c.camera());assert(v.gl.getError()===v.gl.NO_ERROR)}});
+ test('outline shader renders green pixels around selected plate',()=>{v.transparent=true;v.selectSign(p5);settle();v.drawView(c.camera());const gl=v.gl,data=new Uint8Array(cv.width*cv.height*4);gl.readPixels(0,0,cv.width,cv.height,gl.RGBA,gl.UNSIGNED_BYTE,data);let green=0;for(let i=0;i<data.length;i+=4)if(data[i]<50&&data[i+1]>180&&data[i+2]<130)green++;assert(green>30,'green pixels '+green);assert(gl.getError()===gl.NO_ERROR)});
+ test('all render modes restore WebGL blend/depth state',()=>{for(const mode of ['orbit','front','side'])for(const alpha of [false,true]){c.setMode(mode);v.transparent=alpha;v.drawView(c.camera());assert(v.gl.getParameter(v.gl.DEPTH_WRITEMASK));assert(!v.gl.isEnabled(v.gl.BLEND));assert(v.gl.getError()===v.gl.NO_ERROR)}});
+ test('transparent pass preserves opaque canvas alpha',()=>{c.setMode('orbit');c.home();v.transparent=true;v.drawView(c.camera());const gl=v.gl,data=new Uint8Array(cv.width*cv.height*4);gl.readPixels(0,0,cv.width,cv.height,gl.RGBA,gl.UNSIGNED_BYTE,data);for(let i=3;i<data.length;i+=4)assert(data[i]===255,'canvas alpha '+data[i]);});
+ test('focus animates from current pose with easing and preserves selection',()=>{
+   pose(p5,0,12);const a=c.camera(),actions=c.state.actions;v.selectSign(p5);
+   equal(c.camera(),a);assert(c.transitioning);assert(d.querySelector('#inspection-status').textContent.includes('이동 중'));
+   advance(.05);const first=c.state.distance;assert(first<12&&first>11.9);
+   advance(.35);assert(c.state.distance<first);assert(c.state.distance>2);assert(v.selectedId==='P5');
+   equal(c.camera().up,[0,1,0]);near(c.camera().eye[1],c.camera().target[1]);
+   settle();assert(!c.transitioning);equal(c.state.target,p5.position);near(c.state.yaw,p5.yaw);
+   assert(v.selectedId==='P5');assert(c.state.actions===actions+1);assert(!d.querySelector('#inspection-status').textContent.includes('이동 중'));
+ });
+ test('yaw follows the short path across the angle boundary',()=>{
+   const sign={...p5,yaw:-170*Math.PI/180};pose(sign,170*Math.PI/180,8);c.focusSign(sign);
+   advance(.425);near(c.state.yaw,Math.PI);settle();near(c.state.yaw,sign.yaw);
+ });
+ test('retargeting starts at the interpolated pose without a jump',()=>{
+   pose(p5,0,12);v.selectSign(p5);advance(.3);const a=c.camera(),next=v.model.signs.find(s=>s.id==='P1');
+   v.selectSign(next);equal(c.camera(),a);settle();equal(c.state.target,next.position);assert(v.selectedId==='P1');
+ });
+ test('zoom interrupts approach at its current pose and does not resume',()=>{
+   pose(p5,0,12);v.selectSign(p5);advance(.3);const distance=c.state.distance,target=[...c.state.target];
+   c.zoom(1.1);near(c.state.distance,distance*1.1);equal(c.state.target,target);assert(!c.transitioning);assert(v.selectedId===null);
+   const a=c.camera();settle();equal(c.camera(),a);
+ });
+ test('Home, view switches and comparison shortcuts cancel approach',()=>{
+   for(const stop of [()=>c.home(),()=>c.setMode('front'),()=>c.focusComparison(v.model.comparisons[1])]){
+     pose(p5,0,12);v.selectSign(p5);advance(.2);stop();const a=c.camera();assert(!c.transitioning);assert(v.selectedId===null);settle();equal(c.camera(),a);
+   }
+ });
+ test('horizontal drag and arrow key interrupt automatic approach',()=>{
+   for(const stop of [()=>{pointer('pointerdown',100,100);pointer('pointermove',140,100);pointer('pointerup',140,100)},()=>event('keydown','ArrowLeft')]){
+     pose(p5,0,12);v.selectSign(p5);advance(.2);stop();const a=c.camera();assert(!c.transitioning);assert(v.selectedId===null);settle();equal(c.camera(),a);
+   }
+ });
+ test('orthographic selection starts at the visible camera and keeps pivot scale',()=>{
+   for(const mode of ['front','side']){
+     pose(p5);c.setMode(mode);c.home();const a=c.camera();v.selectSign(p5);const b=c.camera();
+     a.eye.forEach((n,i)=>near(n,b.eye[i]));equal(a.target,b.target);near(c.state.distance*Math.tan(c.state.fov*Math.PI/360),a.halfHeight);
+     advance(.3);v.drawView(c.camera());assert(v.gl.getError()===v.gl.NO_ERROR);settle();near(c.state.fov,45);equal(c.state.target,p5.position);
+   }
+ });
+ test('transparency toggle and losing canvas focus do not cancel approach',()=>{
+   pose(p5,0,12);v.selectSign(p5);advance(.2);v.toggleTransparency();d.querySelector('#measure').focus();
+   assert(c.transitioning);settle();assert(!c.transitioning);assert(v.selectedId==='P5');equal(c.state.target,p5.position);
+ });
+ test('mobile has no horizontal overflow',()=>{app.style.width='390px';assert(d.documentElement.scrollWidth<=390)});
+ result.textContent=out.join('\n')+'\nTOTAL '+out.length+' FAILED '+out.filter(x=>x.startsWith('FAIL')).length;
+};
+</script>
