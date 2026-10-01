@@ -355,8 +355,7 @@ canvas:focus-visible { outline: 2px solid var(--d-accent); outline-offset: -2px;
 .task-copy small { display: block; font-size: 10px; color: var(--d-muted); line-height: 1.5; margin-top: 3px; }
 .task-state { display: block; font-size: 10px; color: var(--d-accent); margin-top: 5px; }
 .task-arrow { font-size: 14px; color: var(--d-muted); }
-.task-card:disabled .task-state { color: var(--d-muted); }
-.task-card:disabled .task-id { background: var(--d-bg-soft); color: var(--d-muted); }
+.task-card.needs-overview .task-id { background: var(--d-bg-soft); color: var(--d-muted); }
 .task-card.selected { border-color: #36b96e; box-shadow: inset 3px 0 #36b96e; }
 .task-card.selected .task-state { color: #198a43; }
 .comparison-card { background: var(--d-bg-soft); }

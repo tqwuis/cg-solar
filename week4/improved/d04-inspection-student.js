@@ -13,7 +13,7 @@
   for(const poi of model.poi){
     const card=document.createElement('button');card.type='button';card.className='task-card';card.dataset.sign=poi.id;
     card.innerHTML=`<span class="task-id">${poi.id}</span><span class="task-copy"><strong>${poi.name}</strong><small>${poi.task}</small><span class="task-state">화면에서 찾기</span></span><span class="task-arrow" aria-hidden="true">↗</span>`;
-    card.addEventListener('click',()=>{viewer.focusVisible(poi.id);canvas.focus({preventScroll:true});});
+    card.addEventListener('click',()=>{viewer.focusFromList(poi.id);canvas.focus({preventScroll:true});});
     document.querySelector('#poi-tasks').appendChild(card);cards.set(poi.id,card);
   }
   for(const task of model.comparisons){
@@ -39,8 +39,8 @@
     document.querySelector('#selection-card').hidden=!selected;
     document.querySelector('#selection-name').textContent=selected?selected.id+' · '+(selected.name||'비교 장치 명판'):'';
     document.querySelector('#inspection-status').textContent=selected
-      ? selected.id+(controls.transitioning?' 정면으로 이동 중입니다. 드래그나 휠로 멈출 수 있습니다.':' 정면으로 이동했습니다. 명판에서 내용을 확인하세요.')
-      :transparent?'명판은 선명하게 유지됩니다. 번호나 명판을 클릭하세요.':'보이는 명판을 클릭하세요. 가려진 명판은 Space로 찾을 수 있습니다.';
+      ? selected.id+(controls.transitioning?(controls.transitionStage==='overview'?' 관찰을 위해 전체 보기로 이동 중입니다.':' 정면으로 이동 중입니다. 드래그나 휠로 멈출 수 있습니다.'):' 정면으로 이동했습니다. 명판에서 내용을 확인하세요.')
+      :controls.transitioning?'전체 보기로 이동 중입니다. 드래그나 휠로 멈출 수 있습니다.':transparent?'명판은 선명하게 유지됩니다. 번호나 오른쪽 목록을 클릭하세요.':'명판이나 오른쪽 목록을 클릭하세요. 가려진 지점도 자동으로 찾아갑니다.';
     document.querySelector('#instructions').innerHTML=mode==='orbit'
       ? '드래그: 좌우 회전 · Shift / 오른쪽 드래그: 평행 이동 · 휠: 거리 조절<br>명판 또는 표시된 번호 클릭: 정면으로 접근 · <kbd>Space</kbd> 구조물 반투명'
       : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / 드래그: 화면 평행 이동 · 휠: 확대/축소<br><kbd>Home</kbd> 현재 뷰 전체 보기 · <kbd>Space</kbd> 구조물 반투명 · 원근 관찰로 이전 시점 복귀';
@@ -66,13 +66,13 @@
         occupied.push({x,y});pin.style.left=x+'px';pin.style.top=y+'px';
       }
       if(card){
-        card.disabled=!point;
+        card.classList.toggle('needs-overview',!point);
         const projected=window.InspectionPicking.project(controls.camera(),rect,sign.position);
-        card.querySelector('.task-state').textContent=sign.id===viewer.selectedId?'현재 관찰 중':point?'선택해서 가까이 보기':projected?'구조물에 가려짐 · Space로 찾기':'화면 밖 · 회전 / 전체 보기';
+        card.querySelector('.task-state').textContent=sign.id===viewer.selectedId?(controls.transitioning?(controls.transitionStage==='overview'?'전체 보기로 이동 중':'명판으로 이동 중'):'현재 관찰 중'):point?'선택해서 가까이 보기':projected?'가려짐 · 반투명·전체 보기 후 이동':'화면 밖 · 반투명·전체 보기 후 이동';
         if(point)count++;
       }
     }
-    document.querySelector('#visible-count').textContent=count+' / 6 선택 가능';
+    document.querySelector('#visible-count').textContent=count+' / 6 화면에 보임';
   };
   let pointerDown=false;
   canvas.addEventListener('pointerdown',()=>{pointerDown=true;canvas.style.cursor='grabbing';});

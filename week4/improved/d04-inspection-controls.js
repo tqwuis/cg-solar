@@ -16,24 +16,33 @@ window.InspectionControls = function(canvas, bounds) {
     if(previous && canvas.hasPointerCapture(previous.id))canvas.releasePointerCapture(previous.id);
   }
   function clearInput(){keys.clear();stopDrag();}
-  function resetView() {
+  function overviewPose() {
+    if(state.mode==='orbit'){
+      const halfY=45*Math.PI/360,halfX=Math.atan(Math.tan(halfY)*aspect());
+      return {target:[...center],yaw:.6,fov:45,distance:1.08*radius/Math.sin(Math.min(halfX,halfY))};
+    }
     const axis=state.mode==='front'?0:2;
-    views[state.mode]={target:[...center],halfHeight:1.1*Math.max(
+    return {target:[...center],halfHeight:1.1*Math.max(
       (bounds.max[1]-bounds.min[1])/2,(bounds.max[axis]-bounds.min[axis])/2/aspect())};
+  }
+  function startTransition(to,{reason='focus',stage='focus',delay=0,next=null}={}) {
+    const owner=state.mode==='orbit'?state:views[state.mode];
+    const from={target:[...owner.target]};
+    for(const key of Object.keys(to))if(key!=='target')from[key]=owner[key];
+    transition={mode:state.mode,from,to,elapsed:-delay,reason,stage,next,
+      yawDelta:state.mode==='orbit'?Math.atan2(Math.sin(to.yaw-from.yaw),Math.cos(to.yaw-from.yaw)):0};
   }
   function setMode(mode) {
     if(!['orbit','front','side'].includes(mode)||mode===state.mode)return;
     transition=null;clearInput();state.mode=mode;
-    if(mode!=='orbit'&&!views[mode])resetView();
+    if(mode!=='orbit'&&!views[mode])views[mode]=overviewPose();
     state.actions++;changed('mode');canvas.focus({preventScroll:true});
   }
-  function home() {
+  function home({animate=true}={}) {
     transition=null;clearInput();
-    if(state.mode==='orbit') {
-      state.target=[...center];state.yaw=.6;state.fov=45;
-      const halfY=state.fov*Math.PI/360,halfX=Math.atan(Math.tan(halfY)*aspect());
-      state.distance=1.08*radius/Math.sin(Math.min(halfX,halfY));
-    } else resetView();
+    const to=overviewPose();
+    if(animate)startTransition(to,{reason:'home',stage:'overview'});
+    else Object.assign(state.mode==='orbit'?state:views[state.mode],to);
     changed('home');
   }
   function camera() {
@@ -71,8 +80,8 @@ window.InspectionControls = function(canvas, bounds) {
     changed();
   }
   // 명판의 정면 법선 방향에서 접근하고 중심과 높이를 맞춥니다.
-  function focusSign(sign) {
-    const start=camera(),fov=transition?.to.fov??state.fov;
+  function focusSign(sign,{overview=false}={}) {
+    const start=camera(),fov=overview?45:transition?.to.fov??state.fov;
     clearInput();
     if(start.orthographic){
       // 저장된 원근 시점으로 뛰지 않고 현재 직교 시점에서 출발합니다.
@@ -84,22 +93,28 @@ window.InspectionControls = function(canvas, bounds) {
     const tan=Math.tan(fov*Math.PI/360);
     const to={target:[...sign.position],yaw:sign.yaw,fov,
       distance:Math.max(.4,1.8*Math.max(sign.size[1]/(2*tan),sign.size[0]/(2*tan*aspect())))};
-    transition={elapsed:0,from:{target:[...state.target],distance:state.distance,yaw:state.yaw,fov:state.fov},to,
-      yawDelta:Math.atan2(Math.sin(to.yaw-state.yaw),Math.cos(to.yaw-state.yaw))};
+    // 숨은 명판: 현재 시점 → 전체 보기 → 잠시 대기 → 명판 정면.
+    startTransition(overview?overviewPose():to,{stage:overview?'overview':'focus',next:overview?{to,delay:.18}:null});
     state.actions++;changed('focus');
   }
-  function advanceFocus(dt) {
-    if(!transition)return;
-    const t=transition;
-    t.elapsed=Math.min(focusDuration,t.elapsed+Math.max(dt,0));
-    const p=t.elapsed/focusDuration,ease=p*p*p*(10+p*(-15+6*p));
-    const mix=(a,b)=>a+(b-a)*ease;
-    state.target=t.from.target.map((n,i)=>mix(n,t.to.target[i]));
-    state.distance=mix(t.from.distance,t.to.distance);state.fov=mix(t.from.fov,t.to.fov);
-    state.yaw=t.from.yaw+t.yawDelta*ease;
-    if(p===1){Object.assign(state,t.to);transition=null;}
-    // 자동 접근 중에는 선택 외곽선을 유지합니다.
-    changed('focus');
+  function advanceTransition(dt) {
+    let remaining=Math.max(dt,0);
+    while(transition){
+      const t=transition,owner=t.mode==='orbit'?state:views[t.mode];
+      const step=Math.min(remaining,focusDuration-t.elapsed);
+      t.elapsed+=step;remaining-=step;
+      const p=Math.max(0,t.elapsed)/focusDuration,ease=p*p*p*(10+p*(-15+6*p));
+      const mix=(a,b)=>a+(b-a)*ease;
+      owner.target=t.from.target.map((n,i)=>mix(n,t.to.target[i]));
+      for(const key of Object.keys(t.to))if(key!=='target')owner[key]=key==='yaw'?t.from.yaw+t.yawDelta*ease:mix(t.from[key],t.to[key]);
+      if(p===1){
+        Object.assign(owner,t.to);transition=null;
+        if(t.next)startTransition(t.next.to,{reason:t.reason,delay:t.next.delay});
+      }
+      // 명판으로 가는 전체 보기 단계도 선택 외곽선을 유지합니다.
+      changed(t.reason);
+      if(p<1||remaining<=0)break;
+    }
   }
   function focusComparison(comparison) {
     transition=null;clearInput();state.mode=comparison.id==='O1'?'front':'side';
@@ -145,7 +160,7 @@ window.InspectionControls = function(canvas, bounds) {
   canvas.addEventListener('keydown',e=>{
     if(e.ctrlKey||e.altKey||e.metaKey)return;
     if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&state.mode!=='orbit') {
-      e.preventDefault();if(!keys.has(e.code))state.actions++;keys.add(e.code);return;
+      e.preventDefault();transition=null;if(!keys.has(e.code))state.actions++;keys.add(e.code);return;
     }
     if(e.code==='Home'){e.preventDefault();if(!e.repeat){state.actions++;home();}return;}
     if(['+','=','-'].includes(e.key)){e.preventDefault();zoom(e.key==='-'?1.12:1/1.12);return;}
@@ -156,7 +171,7 @@ window.InspectionControls = function(canvas, bounds) {
   document.addEventListener('keyup',e=>keys.delete(e.code));
   function update(dt) {
     if(document.hidden){clearInput();return;}
-    advanceFocus(dt);
+    advanceTransition(dt);
     if(document.activeElement!==canvas){clearInput();return;}
     if(state.mode==='orbit')return;
     const x=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
@@ -167,6 +182,7 @@ window.InspectionControls = function(canvas, bounds) {
   }
   canvas.addEventListener('blur',clearInput);window.addEventListener('blur',clearInput);
   document.addEventListener('visibilitychange',clearInput);
-  home();
-  return {state,camera,home,setMode,zoom,focusSign,focusComparison,update,get transitioning(){return transition!==null;}};
+  home({animate:false});
+  return {state,camera,home,setMode,zoom,focusSign,focusComparison,update,
+    get transitioning(){return transition!==null;},get transitionStage(){return transition?.stage??null;}};
 };

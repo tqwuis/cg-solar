@@ -8,7 +8,7 @@ app.onload=()=>{
  const test=(n,f)=>{try{f();out.push('PASS '+n)}catch(e){out.push('FAIL '+n+': '+e.message)}};
  if(!v){result.textContent='FAIL initialization';return}
  const c=v.controls,cv=v.canvas,pick=w.InspectionPicking;
- const pose=(sign,yaw=sign.yaw,distance=2)=>{c.setMode('orbit');c.home();c.state.target=[...sign.position];c.state.yaw=yaw;c.state.distance=distance;};
+ const pose=(sign,yaw=sign.yaw,distance=2)=>{c.setMode('orbit');c.home({animate:false});c.state.target=[...sign.position];c.state.yaw=yaw;c.state.distance=distance;};
  const advance=seconds=>{for(let left=seconds;left>1e-8;left-=.05)c.update(Math.min(.05,left));};
  const settle=()=>advance(1);
  const pixel=sign=>pick.project(c.camera(),cv.getBoundingClientRect(),sign.position);
@@ -28,12 +28,12 @@ app.onload=()=>{
  test('Shift drag pans, interrupts animation and clears outline',()=>{v.selectSign(p5);advance(.2);const a=c.camera();pointer('pointerdown',100,100,{shiftKey:true});pointer('pointermove',130,140);pointer('pointerup',130,140);assert(c.camera().target[1]>a.target[1]);assert(v.selectedId===null);assert(!c.transitioning);const b=c.camera();settle();equal(c.camera(),b)});
  test('click without drag picks geometry',()=>{pose(p5);const p=pixel(p5);pointer('pointerdown',p.x,p.y);pointer('pointerup',p.x,p.y);assert(v.selectedId==='P5')});
  test('Space does not affect text inputs',()=>{const input=d.createElement('input');d.body.append(input);const a=v.transparent;input.dispatchEvent(new w.KeyboardEvent('keydown',{code:'Space',bubbles:true}));assert(v.transparent===a);input.remove()});
- test('orthographic modes preserve original orbit pose',()=>{pose(p5,.2,4);const a=c.camera();c.setMode('front');c.zoom(.7);c.setMode('side');c.home();c.setMode('orbit');equal(c.camera(),a)});
+ test('orthographic modes preserve original orbit pose',()=>{pose(p5,.2,4);const a=c.camera();c.setMode('front');c.zoom(.7);c.setMode('side');c.home({animate:false});c.setMode('orbit');equal(c.camera(),a)});
  test('orthographic WASD and drag pan without rotation',()=>{c.setMode('side');const a=c.camera();cv.focus();event('keydown','KeyD');c.update(.05);event('keyup','KeyD');near(c.camera().target[2]-a.target[2],-.4);pointer('pointerdown',100,100);pointer('pointermove',130,140);pointer('pointerup',130,140);const b=c.camera();b.eye.forEach((x,i)=>near(x-b.target[i],a.eye[i]-a.target[i]))});
  test('both comparison shortcuts frame correct projection',()=>{for(const task of v.model.comparisons){c.focusComparison(task);assert(c.state.mode===(task.id==='O1'?'front':'side'));assert(c.camera().orthographic);v.drawView(c.camera());assert(v.gl.getError()===v.gl.NO_ERROR)}});
  test('outline shader renders green pixels around selected plate',()=>{v.transparent=true;v.selectSign(p5);settle();v.drawView(c.camera());const gl=v.gl,data=new Uint8Array(cv.width*cv.height*4);gl.readPixels(0,0,cv.width,cv.height,gl.RGBA,gl.UNSIGNED_BYTE,data);let green=0;for(let i=0;i<data.length;i+=4)if(data[i]<50&&data[i+1]>180&&data[i+2]<130)green++;assert(green>30,'green pixels '+green);assert(gl.getError()===gl.NO_ERROR)});
  test('all render modes restore WebGL blend/depth state',()=>{for(const mode of ['orbit','front','side'])for(const alpha of [false,true]){c.setMode(mode);v.transparent=alpha;v.drawView(c.camera());assert(v.gl.getParameter(v.gl.DEPTH_WRITEMASK));assert(!v.gl.isEnabled(v.gl.BLEND));assert(v.gl.getError()===v.gl.NO_ERROR)}});
- test('transparent pass preserves opaque canvas alpha',()=>{c.setMode('orbit');c.home();v.transparent=true;v.drawView(c.camera());const gl=v.gl,data=new Uint8Array(cv.width*cv.height*4);gl.readPixels(0,0,cv.width,cv.height,gl.RGBA,gl.UNSIGNED_BYTE,data);for(let i=3;i<data.length;i+=4)assert(data[i]===255,'canvas alpha '+data[i]);});
+ test('transparent pass preserves opaque canvas alpha',()=>{c.setMode('orbit');c.home({animate:false});v.transparent=true;v.drawView(c.camera());const gl=v.gl,data=new Uint8Array(cv.width*cv.height*4);gl.readPixels(0,0,cv.width,cv.height,gl.RGBA,gl.UNSIGNED_BYTE,data);for(let i=3;i<data.length;i+=4)assert(data[i]===255,'canvas alpha '+data[i]);});
  test('focus animates from current pose with easing and preserves selection',()=>{
    pose(p5,0,12);const a=c.camera(),actions=c.state.actions;v.selectSign(p5);
    equal(c.camera(),a);assert(c.transitioning);assert(d.querySelector('#inspection-status').textContent.includes('이동 중'));
@@ -56,8 +56,8 @@ app.onload=()=>{
    c.zoom(1.1);near(c.state.distance,distance*1.1);equal(c.state.target,target);assert(!c.transitioning);assert(v.selectedId===null);
    const a=c.camera();settle();equal(c.camera(),a);
  });
- test('Home, view switches and comparison shortcuts cancel approach',()=>{
-   for(const stop of [()=>c.home(),()=>c.setMode('front'),()=>c.focusComparison(v.model.comparisons[1])]){
+ test('view switches and comparison shortcuts cancel approach',()=>{
+   for(const stop of [()=>c.setMode('front'),()=>c.focusComparison(v.model.comparisons[1])]){
      pose(p5,0,12);v.selectSign(p5);advance(.2);stop();const a=c.camera();assert(!c.transitioning);assert(v.selectedId===null);settle();equal(c.camera(),a);
    }
  });
@@ -68,7 +68,7 @@ app.onload=()=>{
  });
  test('orthographic selection starts at the visible camera and keeps pivot scale',()=>{
    for(const mode of ['front','side']){
-     pose(p5);c.setMode(mode);c.home();const a=c.camera();v.selectSign(p5);const b=c.camera();
+     pose(p5);c.setMode(mode);c.home({animate:false});const a=c.camera();v.selectSign(p5);const b=c.camera();
      a.eye.forEach((n,i)=>near(n,b.eye[i]));equal(a.target,b.target);near(c.state.distance*Math.tan(c.state.fov*Math.PI/360),a.halfHeight);
      advance(.3);v.drawView(c.camera());assert(v.gl.getError()===v.gl.NO_ERROR);settle();near(c.state.fov,45);equal(c.state.target,p5.position);
    }
@@ -76,6 +76,72 @@ app.onload=()=>{
  test('transparency toggle and losing canvas focus do not cancel approach',()=>{
    pose(p5,0,12);v.selectSign(p5);advance(.2);v.toggleTransparency();d.querySelector('#measure').focus();
    assert(c.transitioning);settle();assert(!c.transitioning);assert(v.selectedId==='P5');equal(c.state.target,p5.position);
+ });
+ const refreshCards=()=>v.onFrame(performance.now()/1000);
+ const p5Card=d.querySelector('[data-sign="P5"]');
+ test('occluded sidebar button enables transparency, shows overview, then approaches',()=>{
+   c.setMode('orbit');c.home({animate:false});const overview=c.camera();pose(p5,0,12);v.transparent=false;refreshCards();
+   assert(v.visibleSign('P5')===null);assert(!p5Card.disabled);assert(p5Card.classList.contains('needs-overview'));
+   const start=c.camera();p5Card.click();assert(v.transparent);assert(c.transitioning);equal(c.camera(),start);assert(v.selectedId==='P5');
+   advance(.4);assert(c.state.distance>12);assert(c.state.distance<Math.hypot(...overview.eye.map((n,i)=>n-overview.target[i])));
+   advance(.45);equal(c.camera(),overview);advance(.1);equal(c.camera(),overview);advance(.3);
+   assert(c.state.distance<Math.hypot(...overview.eye.map((n,i)=>n-overview.target[i])));
+   advance(1);assert(!c.transitioning);equal(c.state.target,p5.position);assert(v.selectedId==='P5');
+ });
+ test('offscreen sidebar navigation preserves already enabled transparency',()=>{
+   pose(p5);c.state.target=[200,200,200];v.transparent=true;refreshCards();
+   assert(v.visibleSign('P5')===null);assert(!p5Card.disabled);p5Card.click();assert(v.transparent);assert(c.transitioning);
+   advance(2.2);equal(c.state.target,p5.position);assert(v.selectedId==='P5');assert(v.transparent);
+ });
+ test('visible sidebar selection keeps current pose and opacity',()=>{
+   pose(p5);v.transparent=false;refreshCards();assert(v.visibleSign('P5'));const start=c.camera();
+   p5Card.click();assert(!v.transparent);equal(c.camera(),start);advance(.1);assert(c.state.distance<start.eye.reduce((sum,n,i)=>sum+(n-start.target[i])**2,0)**.5);
+   settle();equal(c.state.target,p5.position);
+ });
+ test('hidden sidebar selection from orthographic uses orbit overview',()=>{
+   c.setMode('orbit');c.home({animate:false});const overview=c.camera();c.setMode('front');c.home({animate:false});cv.focus();
+   event('keydown','KeyD');for(let i=0;i<200;i++)c.update(.05);event('keyup','KeyD');v.transparent=false;refreshCards();
+   assert(v.visibleSign('P5')===null);const start=c.camera();p5Card.click();assert(c.state.mode==='orbit');assert(v.transparent);
+   start.eye.forEach((n,i)=>near(c.camera().eye[i],n));equal(c.camera().target,start.target);
+   advance(.85);equal(c.camera(),overview);
+   advance(2.2);equal(c.state.target,p5.position);assert(v.selectedId==='P5');
+ });
+ test('manual input cancels all remaining steps during overview, wait or approach',()=>{
+   for(const elapsed of [.2,.9,1.3]){
+     pose(p5,0,12);v.transparent=false;refreshCards();p5Card.click();advance(elapsed);c.zoom(.9);
+     const stopped=c.camera();assert(!c.transitioning);assert(v.selectedId===null);advance(2.2);equal(c.camera(),stopped);
+   }
+ });
+ test('overview button animates from current pose and clears selection',()=>{
+   c.setMode('orbit');c.home({animate:false});const overview=c.camera();pose(p5);v.selectSign(p5);settle();
+   const start=c.camera(),transparent=v.transparent;d.querySelector('#home').click();equal(c.camera(),start);
+   assert(c.transitioning);assert(v.selectedId===null);assert(v.transparent===transparent);
+   assert(d.querySelector('#inspection-status').textContent.includes('전체 보기로 이동 중'));
+   advance(.4);assert(c.state.distance>Math.hypot(...start.eye.map((n,i)=>n-start.target[i])));assert(c.transitioning);
+   settle();assert(!c.transitioning);equal(c.camera(),overview);
+ });
+ test('Home key replaces an approach with overview animation without a jump',()=>{
+   c.setMode('orbit');c.home({animate:false});const overview=c.camera();pose(p5,0,12);v.selectSign(p5);advance(.3);
+   const start=c.camera();event('keydown','Home');equal(c.camera(),start);assert(c.transitioning);assert(v.selectedId===null);
+   settle();equal(c.camera(),overview);advance(2);equal(c.camera(),overview);
+ });
+ test('orthographic overview animates pan and scale while preserving orbit',()=>{
+   pose(p5,.2,4);const orbit=c.camera();
+   for(const mode of ['front','side']){
+     c.setMode(mode);c.home({animate:false});const overview=c.camera();c.zoom(.4);
+     pointer('pointerdown',100,100);pointer('pointermove',160,140);pointer('pointerup',160,140);
+     const start=c.camera();c.home();equal(c.camera(),start);advance(.4);const mid=c.camera();
+     assert(mid.orthographic);assert(mid.halfHeight>start.halfHeight&&mid.halfHeight<overview.halfHeight);
+     mid.eye.forEach((n,i)=>near(n-mid.target[i],overview.eye[i]-overview.target[i]));settle();equal(c.camera(),overview);
+     c.zoom(.4);c.home();advance(.2);cv.focus();event('keydown','KeyD');c.update(.05);event('keyup','KeyD');
+     assert(!c.transitioning);const stopped=c.camera();settle();equal(c.camera(),stopped);
+   }
+   c.setMode('orbit');equal(c.camera(),orbit);
+ });
+ test('choosing another plate during overview discards the queued destination',()=>{
+   pose(p5,0,12);v.transparent=false;refreshCards();p5Card.click();advance(.3);const start=c.camera();
+   const next=v.model.signs.find(s=>s.id==='P1');v.selectSign(next);equal(c.camera(),start);advance(2.2);
+   equal(c.state.target,next.position);assert(v.selectedId==='P1');assert(!c.transitioning);
  });
  test('mobile has no horizontal overflow',()=>{app.style.width='390px';assert(d.documentElement.scrollWidth<=390)});
  result.textContent=out.join('\n')+'\nTOTAL '+out.length+' FAILED '+out.filter(x=>x.startsWith('FAIL')).length;

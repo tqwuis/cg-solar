@@ -79,11 +79,16 @@
       }
       return null;
     },
-    selectSign(sign){
+    selectSign(sign,{overview=false}={}){
       if(!model.signs.includes(sign))return;
-      controls.focusSign(sign);api.selectedId=sign.id;announce();
+      if(overview)api.transparent=true;
+      controls.focusSign(sign,{overview});api.selectedId=sign.id;announce();
     },
     focusVisible(id){if(api.visibleSign(id))api.selectSign(model.signs.find(s=>s.id===id));},
+    focusFromList(id){
+      const sign=model.signs.find(s=>s.id===id);if(!sign)return;
+      api.selectSign(sign,{overview:!api.visibleSign(id)});
+    },
     toggleTransparency(){api.transparent=!api.transparent;controls.state.actions++;announce();}
   };window.InspectionViewer=api;
   function announce(){canvas.dispatchEvent(new CustomEvent('inspectionchange'));}
