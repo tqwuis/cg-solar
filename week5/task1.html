@@ -81,7 +81,7 @@ layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNormal;
 
 uniform mat4 uModel, uView, uProj;
-uniform mat3 uNormalMat;              // 지금은 쓰지 않는다 — ★ 단계 5
+uniform mat3 uNormalMat;              // 단계 5: 모델 행렬의 역전치로 법선을 변환한다.
 
 out vec3 vWorldPos;                   // 이 픽셀이 세계 어디에 있는가
 out vec3 vNormal;                     // 이 픽셀의 표면이 어디를 향하는가
@@ -90,7 +90,7 @@ void main() {
   vec4 world = uModel * vec4(aPos, 1.0);
   vWorldPos  = world.xyz;
 
-  vNormal = mat3(uModel) * aNormal;
+  vNormal = uNormalMat * aNormal;
 
   gl_Position = uProj * uView * world;
 }
@@ -106,7 +106,7 @@ in vec3 vWorldPos;
 in vec3 vNormal;
 
 uniform vec3  uBaseColor;             // 물체 자체의 색 (반사 특성)
-uniform vec3  uLightPos;              // 광원의 세계 좌표
+uniform vec3  uLightDir;              // 표면에서 방향광이 오는 쪽을 향하는 월드 방향
 uniform vec3  uLightColor;
 uniform vec3  uSpotPos;               // spot light의 세계 좌표
 uniform vec3  uSpotDir;               // spot light가 향하는 방향
@@ -124,7 +124,7 @@ void main() {
   }
 
   vec3 N = normalize(vNormal);                    // 표면이 향하는 방향
-  vec3 L = normalize(vec3(0.4, 0.8, 0.5));
+  vec3 L = normalize(uLightDir);
   vec3 V = normalize(uViewPos  - vWorldPos);      // 눈 쪽 방향
 
   vec3 diffuse = max(dot(N, L), 0.0) * uBaseColor * uLightColor; 
@@ -133,9 +133,6 @@ void main() {
 
   vec3 R = reflect(-L, N);
   vec3 specular = pow(max(dot(R, V), 0.0), uShininess) * uLightColor * 0.5;
-
-  float d   = length(uLightPos - vWorldPos);
-  float att = 1.0 / (1.0 + 0.02 * d * d);
 
   vec3 spotL = normalize(uSpotPos - vWorldPos);
   vec3 fromSpot = normalize(vWorldPos - uSpotPos);
@@ -147,7 +144,8 @@ void main() {
   vec3 spotR = reflect(-spotL, N);
   vec3 spotSpecular = pow(max(dot(spotR, V), 0.0), uShininess) * uSpotColor * 0.5 * spotFactor;
   
-  fragColor = vec4(ambient + (diffuse + specular) * att +
+  // 방향광은 위치와 거리가 없으므로 거리 감쇠를 적용하지 않는다.
+  fragColor = vec4(ambient + diffuse + specular +
                    (spotDiffuse + spotSpecular) * spotAtt, 1.0);
 }
 `;
@@ -205,10 +203,11 @@ const Mat4 = {
     let det = a00*b01 + a01*b11 + a02*b21;
     if (!det) return new Float32Array([1,0,0, 0,1,0, 0,0,1]);
     det = 1 / det;
+    // 열 우선 배열: 역행렬의 원소를 전치한 순서로 저장한다.
     return new Float32Array([
-      b01*det, (-a22*a01 + a02*a21)*det, ( a12*a01 - a02*a11)*det,
-      b11*det, ( a22*a00 - a02*a20)*det, (-a12*a00 + a02*a10)*det,
-      b21*det, (-a21*a00 + a01*a20)*det, ( a11*a00 - a01*a10)*det]);
+      b01*det, b11*det, b21*det,
+      (-a22*a01 + a02*a21)*det, ( a22*a00 - a02*a20)*det, (-a21*a00 + a01*a20)*det,
+      ( a12*a01 - a02*a11)*det, (-a12*a00 + a02*a10)*det, ( a11*a00 - a01*a10)*det]);
   },
 };
 
@@ -248,7 +247,7 @@ const program = createProgram(VS_SOURCE, FS_SOURCE);
 
 // uniform 의 위치를 이름으로 한 번만 찾아 둔다
 const U = {};
-['uModel','uView','uProj','uNormalMat','uBaseColor','uLightPos','uLightColor',
+['uModel','uView','uProj','uNormalMat','uBaseColor','uLightDir','uLightColor',
  'uSpotPos','uSpotDir','uSpotColor',
  'uViewPos','uShininess','uEmissive'].forEach(function (n) {
   U[n] = gl.getUniformLocation(program, n);
@@ -275,6 +274,8 @@ function createMesh(mesh) {
 
 const sphere = createMesh(makeSphere(32));
 const plane  = createMesh(makePlane(16));
+// 방향광이 오는 쪽을 향하는 월드 방향. 실제 빛의 진행 방향은 -L이다.
+const lightDir = [0.4, 0.8, 0.5];
 
 gl.enable(gl.DEPTH_TEST);
 
@@ -339,8 +340,6 @@ function render() {
   const view = Mat4.lookAt(eye, [0, 1.0, 0], [0, 1, 0]);
   const proj = Mat4.perspective(Math.PI / 4, canvas.width / canvas.height, 0.1, 200);
 
-  // 광원 — 장면 위를 천천히 돈다
-  const lightPos = [Math.cos(t * 0.4) * 5.0, 3.6, Math.sin(t * 0.4) * 5.0];
   // 추가 spot light — 중앙 붉은 구체의 오른쪽 위에서 아래를 비춘다
   const spotPos = [2.2, 4.8, 0.0];
   const spotDir = [0.0, -1.0, 0.0];
@@ -348,7 +347,7 @@ function render() {
   gl.useProgram(program);                       // ← uniform 을 넣기 전에 반드시 먼저!
   gl.uniformMatrix4fv(U.uView, false, view);
   gl.uniformMatrix4fv(U.uProj, false, proj);
-  gl.uniform3fv(U.uLightPos, lightPos);
+  gl.uniform3fv(U.uLightDir, lightDir);
   gl.uniform3f(U.uLightColor, 1.0, 0.97, 0.90);
   gl.uniform3fv(U.uSpotPos, spotPos);
   gl.uniform3fv(U.uSpotDir, spotDir);
@@ -368,11 +367,6 @@ function render() {
   mm = Mat4.multiply(mm, Mat4.translate(2.8, 0, 0));
   mm = Mat4.multiply(mm, Mat4.scale(0.42, 0.42, 0.42));
   draw(sphere, mm, [0.72, 0.72, 0.76], 16, false);
-
-  // 광원 위치 표시 — 스스로 빛나는 물체
-  let ml = Mat4.multiply(Mat4.translate(lightPos[0], lightPos[1], lightPos[2]),
-                         Mat4.scale(0.22, 0.22, 0.22));
-  draw(sphere, ml, [1.0, 0.93, 0.62], 1, true);
 
   // spot light 위치 표시
   let ms = Mat4.multiply(Mat4.translate(spotPos[0], spotPos[1], spotPos[2]),
