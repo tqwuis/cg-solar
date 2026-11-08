@@ -68,5 +68,26 @@
     "asset": "https://polyhaven.com/a/studio_small_09",
     "license": "CC0-1.0",
     "processing": "resized JPEG preview"
+  },
+  {
+    "file": "ice003_color.jpg",
+    "source": "https://ambientcg.com/get?file=Ice003_1K-JPG.zip",
+    "asset": "https://ambientcg.com/view?id=Ice003",
+    "license": "CC0-1.0",
+    "processing": "Unmodified Ice003_1K-JPG_Color.jpg. Only the linear luminance modulates the procedural ice palette."
+  },
+  {
+    "file": "ice003_nor_gl.jpg",
+    "source": "https://ambientcg.com/get?file=Ice003_1K-JPG.zip",
+    "asset": "https://ambientcg.com/view?id=Ice003",
+    "license": "CC0-1.0",
+    "processing": "Unmodified Ice003_1K-JPG_NormalGL.jpg, tangent-space OpenGL normal map."
+  },
+  {
+    "file": "ice003_arm.png",
+    "source": "https://ambientcg.com/get?file=Ice003_1K-JPG.zip",
+    "asset": "https://ambientcg.com/view?id=Ice003",
+    "license": "CC0-1.0",
+    "processing": "R = 255 (no baked AO in source), G = Ice003_1K-JPG_Roughness.jpg grayscale data, B = 0 (nonmetal). Losslessly packed as an 8-bit RGB PNG."
   }
 ]
