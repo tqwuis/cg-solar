@@ -17,12 +17,27 @@
 
   // TODO 1: 화면 픽셀에서 출발하는 카메라 광선의 방향을 만든다.
   vec3 cameraRay(vec2 pixel,vec3 eye){
-    return vec3(0.0,0.0,-1.0); // 시작 상태: 모두 같은 방향
+    vec2 uv=(2.0*pixel-uRes)/uRes.y;
+    vec3 target=vec3(0.0,0.0,-1.8);
+    vec3 forward=normalize(target-eye);
+    vec3 right=normalize(cross(forward,vec3(0.0,1.0,0.0)));
+    vec3 up=cross(right,forward);
+    return normalize(1.7*forward+uv.x*right+uv.y*up);
   }
 
   // TODO 2: 광선과 구의 가까운 양수 교차 거리 t를 계산한다.
   float hitSphere(vec3 ro,vec3 rd,vec3 center,float radius){
-    return -1.0; // 시작 상태: 모든 구를 놓친다
+    vec3 oc=ro-center;
+    float a=dot(rd,rd);
+    float halfB=dot(oc,rd);
+    float c=dot(oc,oc)-radius*radius;
+    float disc=halfB*halfB-a*c;
+    if(disc<0.0)return -1.0;
+    float root=sqrt(disc);
+    float t=(-halfB-root)/a;
+    if(t>0.002)return t;
+    t=(-halfB+root)/a;
+    return t>0.002?t:-1.0;
   }
 
   float traceScene(vec3 ro,vec3 rd,out int hitId){
@@ -61,7 +76,22 @@
 
   // TODO 3: 별의 직접광과 그림자 광선으로 색을 계산한다.
   vec3 shade(vec3 ro,vec3 rd,float t,int id){
-    return surfaceColor(id,ro+t*rd); // 시작 상태: 교차가 구현되면 평평한 색만 표시
+    if(id==0)return uColors[0];
+    vec3 p=ro+t*rd;
+    vec3 N=id==3?vec3(0.0,1.0,0.0):id==4?vec3(0.0,0.0,1.0):normalize(p-uBodies[id].xyz);
+    vec3 toStar=uBodies[0].xyz-p;
+    float lightDistance=length(toStar);
+    vec3 L=toStar/lightDistance;
+    float visible=1.0;
+    if(uShadow==1){
+      int blockerId;
+      float blockerT=traceScene(p+N*0.004,L,blockerId);
+      if(blockerId>0&&blockerT<lightDistance-0.004)visible=0.0;
+    }
+    float diffuse=max(dot(N,L),0.0);
+    float power=4.0/(1.0+0.18*lightDistance*lightDistance);
+    float ambient=id==2?0.13:0.045;
+    return surfaceColor(id,p)*(ambient+visible*diffuse*power);
   }
 
   vec3 displayColor(vec3 c){return pow(c/(1.0+c),vec3(1.0/2.2));}
