@@ -74,7 +74,7 @@
     "source": "https://ambientcg.com/get?file=Ice003_1K-JPG.zip",
     "asset": "https://ambientcg.com/view?id=Ice003",
     "license": "CC0-1.0",
-    "processing": "Unmodified Ice003_1K-JPG_Color.jpg. Only the linear luminance modulates the procedural ice palette."
+    "processing": "Unmodified Ice003_1K-JPG_Color.jpg. Linearized RGB drives PBR base color, tinted by frost, melt and fracture masks."
   },
   {
     "file": "ice003_nor_gl.jpg",

@@ -133,24 +133,17 @@ void main() {
     vec2 uv = vUV * vec2(4.0, 2.0);
     vec3 iceMap = srgbToLinear(texture(uColor, uv).rgb);
     vec3 arm = texture(uARM, uv).rgb;
-    float grain = dot(iceMap, vec3(0.2126, 0.7152, 0.0722));
-    // Week 3이 화면에 출력하던 색을 먼저 조합한 뒤 PBR용 선형 색으로 변환한다.
-    vec3 ice = mix(vec3(0.035, 0.22, 0.34), vec3(0.20, 0.60, 0.72),
-                   smoothstep(0.20, 0.58, terrain));
-    float snow = smoothstep(0.58, 0.82, terrain);
-    ice = mix(ice, vec3(0.82, 0.94, 0.96), snow);
-    ice = mix(ice, vec3(0.52, 0.85, 0.99), 0.92 * floes);
+    // 텍스처의 RGB 결은 유지하고, 빙판·극관 마스크는 재질의 색 배율과 거칠기만 바꾼다.
     float cap = smoothstep(0.67, 0.90, abs(local.y) + 0.12 * terrain);
-    ice = mix(ice, vec3(0.88, 0.98, 1.0), 0.55 * cap);
-    vec3 base = srgbToLinear(ice) * (0.81 + 0.90 * grain);
-    float rough = clamp(0.26 + 0.66 * arm.g + 0.26 * max(snow, cap), 0.045, 1.0);
-    float metal = 0.0; // 얼음과 염수는 비금속
-    // 날이 따뜻해지면 빙판 가장자리에 얕은 청록 물이 고이고 깊은 곳은 남색이 된다.
-    vec3 water = mix(vec3(0.014, 0.26, 0.30), vec3(0.003, 0.028, 0.065), melt);
-    base = mix(base, water, melt);
-    rough = mix(rough, 0.10, melt);
-    base = mix(base, vec3(0.016, 0.46, 0.43), fracture);
-    rough = mix(rough, 0.21, fracture); // 겹치면 노출된 염수가 가장 위에 있다.
+    float frost = max(max(floes, cap), smoothstep(0.58, 0.82, terrain));
+    vec3 tint = mix(vec3(0.38, 1.25, 2.15), vec3(2.8, 3.1, 3.4), frost);
+    tint = mix(tint, vec3(0.06, 0.30, 0.63), melt);
+    tint = mix(tint, vec3(0.15, 2.0, 1.6), fracture);
+    vec3 base = clamp(iceMap * tint, 0.0, 1.0);
+    float rough = mix(arm.g, 0.85, 0.15 + 0.60 * frost);
+    rough = mix(rough, 0.07 + 0.10 * arm.g, melt);
+    rough = clamp(mix(rough, 0.12 + 0.18 * arm.g, fracture), 0.045, 1.0);
+    float metal = arm.b * (1.0 - max(melt, fracture));
 
     // 실습 1의 미분 기반 TBN. 녹은 물과 염수에서는 미세 요철도 잦아든다.
     vec3 dp1 = dFdx(vP), dp2 = dFdy(vP);
@@ -165,15 +158,14 @@ void main() {
     float power = (2.2 + 8.0 * uSolar) * falloff;
     vec3 color = directPBR(N, V, L, base, rough, metal, power);
     float ao = arm.r;
-    color += 0.22 * ao * base;
     vec3 reflected = reflect(-V, N);
     vec2 envUV = vec2(atan(reflected.z, reflected.x)/(2.0*PI)+0.5,
                       asin(clamp(reflected.y,-1.0,1.0))/PI+0.5);
     vec3 env = srgbToLinear(textureLod(uEnv, envUV, 1.5 + rough*5.5).rgb);
-    float fresnel = mix(0.04, max(1.0 - rough, 0.04), pow(1.0 - max(dot(N,V), 0.0), 5.0));
-    color += ao * env * fresnel;
-    float rim = pow(1.0 - max(dot(normalize(vN), V), 0.0), 3.0);
-    color += vec3(0.022, 0.075, 0.11) * rim + auroraLight(local);
+    vec3 F0 = mix(vec3(0.04), base, metal);
+    vec3 fresnel = mix(F0, max(vec3(1.0 - rough), F0), pow(1.0 - max(dot(N,V), 0.0), 5.0));
+    color += ao * (0.22 * (1.0 - fresnel) * (1.0 - metal) * base + env * fresnel);
+    color += auroraLight(local);
     outColor = vec4(linearToSrgb(color/(1.0+color)), 1.0);
 }`;
 

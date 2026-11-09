@@ -131,7 +131,7 @@ vec3 kd = (1.0-F)*(1.0-metal);
 
 ### 빙각의 궤도
 
-단색 태양은 타원의 한 초점에 고정되어 있고, 얼음행성 **빙각**이 그 주위를 공전하며 자전한다. 3주차에 의도한 풍경은 차가운 바다 위를 떠다니는 빙하와 간헐적으로 나타나는 오로라였다. 3주차의 푸른 얼음·눈·극관 색과 높이 잡음을 다시 사용하고, PBR 조명 아래에서도 밝은 빙판의 윤곽이 드러나도록 했다. [3주차 설계와 원래 캡처](../week3/week3.md#행성-1) · [실행 파일](week06-material-starter/task2.html) · [공전 위치 계산](week06-material-starter/task2.js#L202)
+단색 태양은 타원의 한 초점에 고정되어 있고, 얼음행성 **빙각**이 그 주위를 공전하며 자전한다. 3주차에 의도한 풍경은 차가운 바다 위를 떠다니는 빙하와 간헐적으로 나타나는 오로라였다. 3주차의 푸른 얼음·눈·극관 색과 높이 잡음을 다시 사용하고, PBR 조명 아래에서도 밝은 빙판의 윤곽이 드러나도록 했다. [3주차 설계와 원래 캡처](../week3/week3.md#행성-1) · [실행 파일](week06-material-starter/task2.html) · [공전 위치 계산](week06-material-starter/task2.js#L194)
 
 ![고정된 태양과 타원 궤도를 도는 빙각](images/task2-orbit.png)
 
@@ -147,7 +147,7 @@ vec3 kd = (1.0-F)*(1.0-metal);
 
 ![같은 지역의 원일점과 근일점 표면 비교](images/task2-distance.png)
 
-해빙에는 두 천체의 중심 거리 `r`을 사용한다. `1/r²`을 원일점 0, 근일점 1로 정규화한 뒤 제곱근을 취해 공전 중간에도 변화가 보이게 했다. 표면별로 일조 방향, 지형 높이, 위도, 빙판 두께를 반영해 녹기 시작하는 문턱을 다르게 둔다. 아래 확대 화면에서 원반 내부를 표본으로 삼아 해빙 마스크가 절반 이상 켜진 픽셀을 세면, 원일점(거리 4.93)은 약 **2%**, 근일점(거리 1.97)은 약 **72%**다. 이 비율은 캡처에 보이는 면의 값이다. [거리 계산](week06-material-starter/task2.js#L312) · [해빙 마스크](week06-material-starter/task2.js#L84)
+해빙에는 두 천체의 중심 거리 `r`을 사용한다. `1/r²`을 원일점 0, 근일점 1로 정규화한 뒤 제곱근을 취해 공전 중간에도 변화가 보이게 했다. 표면별로 일조 방향, 지형 높이, 위도, 빙판 두께를 반영해 녹기 시작하는 문턱을 다르게 둔다. 아래 확대 화면에서 원반 내부를 표본으로 삼아 해빙 마스크가 절반 이상 켜진 픽셀을 세면, 원일점(거리 4.93)은 약 **2%**, 근일점(거리 1.97)은 약 **72%**다. 이 비율은 캡처에 보이는 면의 값이다. [거리 계산](week06-material-starter/task2.js#L304) · [해빙 마스크](week06-material-starter/task2.js#L84)
 
 ![원일점과 근일점에서 흰 영역이 넓어지는 해빙 마스크](images/task2-distance-mask.png)
 
@@ -155,8 +155,8 @@ vec3 kd = (1.0-F)*(1.0-metal);
 
 | 조건 | 마스크와 재질 변화 |
 | --- | --- |
-| 태양 활동 | 활동을 높이면 태양을 향한 면과 낮은 빙판부터 녹는다. 물이 깊어지면서 청록색에서 남색으로 바뀌고 roughness는 0.10에 가까워진다. 태양의 표시 밝기와 직접광 세기도 함께 변한다. [해빙 규칙](week06-material-starter/task2.js#L84) |
-| 빙각 내부 압력 | 압력이 오르면 로컬 좌표에서 계산한 두 방향의 단층이 벌어져 청록색 염수가 드러난다. 겹치는 곳은 염수의 색과 roughness 0.21을 마지막에 적용한다. [균열 규칙](week06-material-starter/task2.js#L106) · [재질 혼합](week06-material-starter/task2.js#L149) |
+| 태양 활동 | 활동을 높이면 태양을 향한 면과 낮은 빙판부터 녹는다. 물이 깊어지면서 청록색에서 남색으로 바뀌고 물의 roughness는 맵의 G값에 따라 0.07~0.17이 된다. 태양의 표시 밝기와 직접광 세기도 함께 변한다. [해빙 규칙](week06-material-starter/task2.js#L84) |
+| 빙각 내부 압력 | 압력이 오르면 로컬 좌표에서 계산한 두 방향의 단층이 벌어져 청록색 염수가 드러난다. 겹치는 곳은 염수의 색과 roughness 0.12~0.30을 마지막에 적용한다. [균열 규칙](week06-material-starter/task2.js#L106) · [재질 혼합](week06-material-starter/task2.js#L139) |
 
 **태양 활동 0·50·100%**. 근일점에서 내부 압력을 0%로 고정했다. 단계가 올라갈수록 물이 드러나는 영역이 늘고, 같은 지점의 얼음결이 사라지면서 반사점이 좁아진다.
 
@@ -184,4 +184,11 @@ vec3 kd = (1.0-F)*(1.0-metal);
 
 ### 재질 맵 출처
 
-빙판에는 ambientCG의 **Ice 003** 1K 세트를 사용했다. Color 맵은 sRGB에서 선형 색으로 바꾼 후 밝기 무늬만 사용해 3주차 색을 살렸다. NormalGL은 얼음의 가는 요철에 사용하고 녹은 물에서는 강도를 낮춘다. Roughness는 ARM의 G에 넣었다. 원본에 AO 맵이 없어 R은 1, 비금속인 얼음의 B는 0으로 채웠다. 환경 반사는 기존 Poly Haven **Studio Small 09**의 LDR 이미지를 사용한다. 두 에셋은 CC0이다. [Ice 003](https://ambientcg.com/view?id=Ice003) · [ambientCG 라이선스](https://docs.ambientcg.com/license/) · [Studio Small 09](https://polyhaven.com/a/studio_small_09) · [파일별 출처](week06-material-starter/assets/week06/sources.json)
+| 맵 | 프로젝트 파일 | 원본과 적용 방식 | 출처 |
+| --- | --- | --- | --- |
+| Base Color | `ice003_color.jpg` | `Ice003_1K-JPG_Color.jpg`를 파일명만 바꿔 사용했다. RGB를 선형 색으로 변환해 빙판의 기본색에 적용한다. | [ambientCG · Ice 003](https://ambientcg.com/view?id=Ice003) |
+| Normal | `ice003_nor_gl.jpg` | `Ice003_1K-JPG_NormalGL.jpg`를 파일명만 바꿔 사용했다. OpenGL 접선 공간 법선으로 얼음의 미세한 요철을 표현한다. | [ambientCG · Ice 003](https://ambientcg.com/view?id=Ice003) |
+| ARM | `ice003_arm.png` | 프로젝트에서 채널을 합성했다. G에는 원본 `Ice003_1K-JPG_Roughness.jpg`를 넣었다. 원본에 AO 맵이 없어 R은 255로, 비금속인 얼음의 B는 0으로 채웠다. | [ambientCG · Ice 003 1K 원본 ZIP](https://ambientcg.com/get?file=Ice003_1K-JPG.zip) |
+| 환경 반사 | `studio_small_09_tonemapped.jpg` | `studio_small_09.jpg` 톤 매핑 미리보기를 축소한 실습 제공 파일을 사용했다. | [Poly Haven · Studio Small 09](https://polyhaven.com/a/studio_small_09) |
+
+네 맵의 원본 에셋은 모두 **CC0 1.0**으로 공개되어 있다. [ambientCG 라이선스](https://docs.ambientcg.com/license/) · [Poly Haven 라이선스](https://polyhaven.com/license) · [파일별 원본 다운로드 주소](week06-material-starter/assets/week06/sources.json)
