@@ -4,7 +4,18 @@
   const cv=document.querySelector('#cv'),gl=D.context(cv);
   if(!gl)return;
   const camera=[0,0.05,4.5],target=[0,0,-1],light=[0,1.78,-1.7];
+  const profiles=[
+    {name:'저부하',resolution:'640',samples:'4',bounces:'1',advanced:false},
+    {name:'공통',resolution:'640',samples:'8',bounces:'2',advanced:true},
+    {name:'높음',resolution:'1280',samples:'8',bounces:'2',advanced:true},
+    {name:'고부하',resolution:'1920',samples:'16',bounces:'3',advanced:true}
+  ];
+  const fields=['resolution','samples','bounces','advanced'];
+  const storageKey='week7.task2.quality.v1';
+  const budgetMs=33;
   const S=D.UI('#ui',[
+    {id:'preset',type:'select',label:'그래픽 단계',value:'저부하',options:[
+      ...profiles.map(({name})=>({value:name,label:name})),{value:'custom',label:'사용자 설정'}]},
     {id:'mode',type:'select',label:'화면',value:'0',options:[
       {value:'0',label:'① Local: 삼각형 + 직접광'},
       {value:'1',label:'② Ray tracing: 그림자 광선'},
@@ -19,22 +30,42 @@
     {id:'bounces',type:'select',label:'Path 최대 반사',value:'2',options:[
       {value:'1',label:'1회'}, {value:'2',label:'2회'}, {value:'3',label:'3회'}, {value:'4',label:'4회'}]},
     {id:'advanced',type:'check',label:'거울·굴절·환경 반사',value:true}
-  ]);
-  // TODO (실습 2): 여러 실제 기기의 측정 결과를 바탕으로 이 자동 선택 규칙을 수정한다.
-  // PC/노트북 구분은 브라우저가 보장하지 않으므로 저장한 기기별 설정이나 간단한 벤치마크를 활용할 수 있다.
-  function chooseInitialProfile(){
-    const mobile=navigator.userAgentData?.mobile || matchMedia('(pointer:coarse)').matches;
-    return mobile?{name:'모바일 기본값',resolution:'320',samples:'4',bounces:'1',advanced:false}
-                 :{name:'데스크톱 기본값',resolution:'640',samples:'8',bounces:'2',advanced:true};
+  ],(_,id)=>{
+    if(id==='mode')return;
+    if(id==='preset')applyQuality(profiles.find(p=>p.name===S.preset));
+    showQuality('직접 선택');
+    saveQuality();
+  });
+  function control(id){
+    return document.querySelector(`#ui [data-id="${id}"] :is(select,input)`);
   }
-  const initialProfile=chooseInitialProfile();
-  for(const id of ['resolution','samples','bounces']){
-    S[id]=initialProfile[id];
-    document.querySelector(`#ui .ctl[data-id="${id}"] select`).value=S[id];
+  control('preset').querySelector('[value="custom"]').disabled=true;
+  function applyQuality(settings){
+    for(const key of fields){
+      S[key]=settings[key];
+      const input=control(key);
+      if(key==='advanced')input.checked=S[key];
+      else input.value=S[key];
+    }
   }
-  S.advanced=initialProfile.advanced;
-  document.querySelector('#ui .ctl[data-id="advanced"] input').checked=S.advanced;
-  document.querySelector('#profile').textContent=`자동 시작 설정: ${initialProfile.name} · ${S.resolution}×${Number(S.resolution)*9/16} · ${S.samples}표본 · ${S.bounces}회 반사 · 고급 효과 ${S.advanced?'켬':'끔'}`;
+  function showQuality(source){
+    const profile=profiles.find(p=>fields.every(k=>p[k]===S[k]));
+    S.preset=profile?.name??'custom';
+    control('preset').value=S.preset;
+    document.querySelector('#profile').textContent=`${source} · ${profile?.name??'사용자 설정'} · ${S.resolution}×${Number(S.resolution)*9/16} · ${S.samples}표본 · ${S.bounces}회 반사 · 고급 효과 ${S.advanced?'켬':'끔'}`;
+  }
+  function saveQuality(){
+    try{localStorage.setItem(storageKey,JSON.stringify(Object.fromEntries(fields.map(k=>[k,S[k]]))));}
+    catch{/* 저장이 제한된 브라우저에서는 현재 접속 동안만 적용한다. */}
+  }
+  function readQuality(){
+    try{
+      const value=JSON.parse(localStorage.getItem(storageKey));
+      if(value && typeof value.advanced==='boolean' && fields.slice(0,3).every(
+        k=>Array.from(control(k).options).some(o=>o.value===value[k])))return value;
+    }catch{/* 손상되었거나 읽을 수 없는 설정은 다시 측정한다. */}
+    return null;
+  }
   const rasterVS=`#version 300 es
   layout(location=0) in vec3 aPos;
   layout(location=1) in vec3 aNormal;
@@ -269,20 +300,50 @@
     gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,onePixel);
     return performance.now()-start;
   }
+  async function measureMedian(mode){
+    await timedDraw(mode);
+    const times=[];
+    for(let trial=0;trial<5;trial++)times.push(await timedDraw(mode));
+    return median(times);
+  }
+  function lockControls(locked){
+    measuring=locked;
+    document.querySelectorAll('#measure,#ui input,#ui select').forEach(el=>{el.disabled=locked;});
+  }
+  async function initializeQuality(){
+    const saved=readQuality();
+    if(saved){
+      applyQuality(saved);
+      showQuality('저장 설정 복원');
+      return;
+    }
+    lockControls(true);
+    let selected=profiles[0],source='자동 선택';
+    try{
+      for(const profile of profiles){
+        applyQuality(profile);
+        showQuality('성능 측정 중');
+        const elapsed=await measureMedian(2);
+        if(elapsed>budgetMs)break;
+        selected=profile;
+      }
+      applyQuality(selected);
+      saveQuality();
+    }catch{
+      applyQuality(selected);
+      source='측정 중단 · 임시 설정';
+    }finally{
+      showQuality(source);
+      lockControls(false);
+    }
+  }
   async function measure(){
-    if(measuring)return;measuring=true;
-    const button=document.querySelector('#measure');button.disabled=true;
-    const controls=[...document.querySelectorAll('#ui input,#ui select')];
-    controls.forEach(control=>{control.disabled=true;});
+    if(measuring)return;
+    lockControls(true);
     result.textContent='같은 설정에서 방식별 1회 준비 + 5회 측정 중…';
     try{
       const rows=[];
-      for(let mode=0;mode<3;mode++){
-        await timedDraw(mode); // 셰이더 준비와 첫 렌더의 비용 제외
-        const times=[];
-        for(let trial=0;trial<5;trial++)times.push(await timedDraw(mode));
-        rows.push(median(times));
-      }
+      for(let mode=0;mode<3;mode++)rows.push(await measureMedian(mode));
       const base=rows[0];
       result.innerHTML='<table><thead><tr><th>방식</th><th>중앙값</th><th>Local 대비</th></tr></thead><tbody>'+rows.map((v,i)=>`<tr><td>${names[i]}</td><td>${v.toFixed(2)} ms</td><td>${base>0?(v/base).toFixed(1)+'배':'—'}</td></tr>`).join('')+'</tbody></table>';
       status.textContent=`${timer?'GPU 실행 시간':'브라우저 동기화 포함'} · ${cv.width}×${cv.height} · Path ${S.samples}표본/픽셀 · 최대 ${S.bounces}회 반사 · ${S.advanced?'고급 효과 켬':'고급 효과 끔'}. 다른 기기에서도 같은 조건을 측정하세요.`;
@@ -290,11 +351,11 @@
     finally{
       draw(Number(S.mode));
       lastKey=[S.mode,S.resolution,S.samples,S.bounces,S.advanced].join('|');
-      controls.forEach(control=>{control.disabled=false;});
-      button.disabled=false;measuring=false;
+      lockControls(false);
     }
   }
   document.querySelector('#measure').addEventListener('click',measure);
+  initializeQuality();
   D.loop(()=>{
     if(measuring||document.hidden)return;
     const key=[S.mode,S.resolution,S.samples,S.bounces,S.advanced].join('|');
