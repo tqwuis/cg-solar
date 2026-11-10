@@ -28,6 +28,8 @@
 
 카메라 광선은 픽셀마다 가장 가까운 교차점을 찾아 화면에 보일 표면을 정한다. 셰이더는 그 지점에서 별의 중심을 향해 그림자 광선을 보낸다. 출발점을 표면 법선 방향으로 조금 옮겨 자기 표면을 다시 맞히는 오류를 피한다. 별에 닿기 전에 다른 천체에 막히면 해당 지점의 직접광을 0으로 두고 주변광만 남긴다. 그림자 광선을 꺼도 표면이 별을 향하는 각[실습 2 실행](https://tqwuis.github.io/cg-solar/week7/week07-render-compare-starter/task2.html)
 
+## Task 2
+
 ### 측정 기기와 조건
 
 - **LG 그램** — Intel Core i5-1135G7 @ 2.40 GHz, Intel Iris Xe Graphics
